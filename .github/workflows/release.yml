@@ -54,19 +54,18 @@ jobs:
           Copy-Item "assets/hookshot.ico" "portable_pkg/assets/hookshot.ico"
           Compress-Archive -Path "portable_pkg/*" -DestinationPath "HookshotLauncher-Portable.zip" -Force
 
-      - name: Create or Update GitHub Release v1.0.0
+      - name: Create or Update GitHub Release v1.1.0
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $tag = "v1.0.0"
+          $tag = "v1.1.0"
           $notes = @"
-          ## 🛡 Hookshot Launcher & Profile Manager v1.0.0
+          ## 🛡 Hookshot Launcher & Profile Manager v1.1.0
 
-          ### ✨ Novedades en esta versión
-          - **Gestor de Perfiles de Guardado (Save Profiles):** Crea, clona, renombra y alterna perfiles con copias de seguridad ZIP en 1 clic e importación/exportación directa con **Eden, Lichii, Fritchii** y **NX2navi**.
-          - **Visor de Capturas Reales (`caption.sav`):** Muestra la captura JPEG de 543×306, la zona actual de Hyrule, la edad de Link y la fecha exacta de cada uno de los 6 slots.
-          - **Configurador Gráfico e Idioma Completo:** Edita `hookshot_options.ini` y `language.txt` (`es-419`, `es`, `en-US`, etc.) antes de abrir el juego (Presets VRAM, DLSS/DLAA, 60–240 FPS, FrameGen, Ultrawide, HDR, Giroscopio y Cámara Nativa).
-          - **Actualizador y Auto-Instalador (Bootstrap):** Notifica nuevas versiones de `NotRexed/Hookshot` y descarga/ejecuta automáticamente `HookshotBuilder.exe` si el juego aún no está instalado.
+          ### ✨ Novedades en v1.1.0
+          - **Menú de Configuración Dedicado (`⚙ Opciones`):** Ventana principal enfocada limpiamente en los Perfiles de Guardado y capturas de partida, con las opciones gráficas, de audio y controles organizadas en un menú modal independiente.
+          - **Guardado Automático Instantáneo y Sincronización en Vivo:** Eliminado el botón manual de guardar; cualquier cambio se guarda al instante en `hookshot_options.ini` y `language.txt`, y si cambias opciones o guardas partida dentro del juego (`Insert` / `F1`), el Launcher se actualiza en vivo.
+          - **Detección del Juego en Tiempo Real (`▶ Jugar` ↔ `⏹ Detener`):** Detecta automáticamente si `hookshot.exe` está abierto y permite cerrarlo limpiamente desde el propio botón.
 
           ### 📦 Archivos de Descarga
           - **`HookshotLauncher-Setup.exe`**: Instalador automático (instala el Launcher y crea los accesos directos en Escritorio y Menú Inicio con el icono oficial).
@@ -77,5 +76,5 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --clobber
           } else {
-            gh release create $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --title "Hookshot Launcher & Profile Manager v1.0.0" --notes $notes
+            gh release create $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --title "Hookshot Launcher & Profile Manager v1.1.0" --notes $notes
           }

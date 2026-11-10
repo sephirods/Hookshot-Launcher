@@ -4,8 +4,8 @@
 Hookshot Launcher & Profile Manager
 ===================================
 A modern, dark-themed GUI Launcher, Save Profile Manager (with live JPEG screenshot
-and location extraction from caption.sav), Pre-Launch Configuration Editor
-(hookshot_options.ini & language.txt), and Automatic GitHub Updater / Installer
+and location extraction from caption.sav), Live-Synced Configuration Editor
+(hookshot_options.ini & language.txt), Process Monitor, and Automatic GitHub Updater
 for Hookshot (The Legend of Zelda: Ocarina of Time PC Port).
 
 Repository: https://github.com/sephirods/Hookshot-Launcher
@@ -13,6 +13,7 @@ License: MIT
 """
 
 import ctypes
+import ctypes.wintypes
 import datetime
 import io
 import json
@@ -36,7 +37,7 @@ try:
 except ImportError:
     HAS_PIL = False
 
-LAUNCHER_VERSION = "v1.0.0"
+LAUNCHER_VERSION = "v1.1.0"
 LAUNCHER_REPO = "sephirods/Hookshot-Launcher"
 HOOKSHOT_REPO = "NotRexed/Hookshot"
 HOOKSHOT_API_LATEST = f"https://api.github.com/repos/{HOOKSHOT_REPO}/releases/latest"
@@ -75,7 +76,77 @@ ACCENT_BLUE = "#58a6ff"
 ACCENT_GREEN = "#238636"
 ACCENT_GREEN_HOVER = "#2ea043"
 ACCENT_RED = "#da3633"
+ACCENT_RED_HOVER = "#f85149"
 BORDER_COLOR = "#30363d"
+
+
+# ---------------------------------------------------------------------------
+# Fast Win32 Process Detection & Termination (Zero Console Flash)
+# ---------------------------------------------------------------------------
+TH32CS_SNAPPROCESS = 0x00000002
+PROCESS_TERMINATE = 0x0001
+
+
+class PROCESSENTRY32W(ctypes.Structure):
+    _fields_ = [
+        ("dwSize", ctypes.wintypes.DWORD),
+        ("cntUsage", ctypes.wintypes.DWORD),
+        ("th32ProcessID", ctypes.wintypes.DWORD),
+        ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+        ("th32ModuleID", ctypes.wintypes.DWORD),
+        ("cntThreads", ctypes.wintypes.DWORD),
+        ("th32ParentProcessID", ctypes.wintypes.DWORD),
+        ("pcPriClassBase", ctypes.c_long),
+        ("dwFlags", ctypes.wintypes.DWORD),
+        ("szExeFile", ctypes.c_wchar * 260),
+    ]
+
+
+def find_running_pids_by_name(exe_name="hookshot.exe"):
+    """Return list of active PIDs matching exe_name using Win32 Toolhelp32 snapshot."""
+    pids = []
+    if os.name != "nt":
+        return pids
+    target = exe_name.lower()
+    try:
+        kernel32 = ctypes.windll.kernel32
+        snap = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+        if snap == ctypes.wintypes.HANDLE(-1).value or snap == -1:
+            return pids
+        try:
+            pe = PROCESSENTRY32W()
+            pe.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+            if kernel32.Process32FirstW(snap, ctypes.byref(pe)):
+                while True:
+                    if pe.szExeFile.lower() == target:
+                        pids.append(int(pe.th32ProcessID))
+                    if not kernel32.Process32NextW(snap, ctypes.byref(pe)):
+                        break
+        finally:
+            kernel32.CloseHandle(snap)
+    except Exception:
+        pass
+    return pids
+
+
+def terminate_pids(pids):
+    """Terminate all given PIDs cleanly via Win32 TerminateProcess."""
+    if os.name != "nt":
+        return False
+    killed_any = False
+    kernel32 = ctypes.windll.kernel32
+    for pid in pids:
+        try:
+            hproc = kernel32.OpenProcess(PROCESS_TERMINATE, False, int(pid))
+            if hproc:
+                try:
+                    if kernel32.TerminateProcess(hproc, 0):
+                        killed_any = True
+                finally:
+                    kernel32.CloseHandle(hproc)
+        except Exception:
+            pass
+    return killed_any
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +502,7 @@ def parse_caption_sav(caption_path):
                 elif "_Adult" in raw_scn or "Adult" in raw_scn:
                     info["age"] = "Link Adulto"
 
+        # Find JPEG SOI marker (FF D8 FF)
         jpg_start = data.find(b"\xff\xd8\xff")
         if jpg_start != -1:
             info["jpeg_bytes"] = data[jpg_start:]
@@ -494,6 +566,27 @@ def get_active_save_dir(game_dir):
     return os.path.join(save_root, DEFAULT_UID)
 
 
+def get_folder_latest_mtime(folder_path):
+    """Return the latest mtime across slot_*/progress.sav and caption.sav in folder_path."""
+    latest = 0.0
+    if not os.path.isdir(folder_path):
+        return latest
+    try:
+        for name in os.listdir(folder_path):
+            if not name.startswith("slot_"):
+                continue
+            slot_dir = os.path.join(folder_path, name)
+            for fname in ("progress.sav", "caption.sav"):
+                fpath = os.path.join(slot_dir, fname)
+                if os.path.isfile(fpath):
+                    mt = os.path.getmtime(fpath)
+                    if mt > latest:
+                        latest = mt
+    except Exception:
+        pass
+    return latest
+
+
 def copy_save_contents(src_dir, dst_dir, keep_option_sav=False):
     """Safely copy slot_* folders, account.sav, and option.sav from src_dir to dst_dir."""
     os.makedirs(dst_dir, exist_ok=True)
@@ -520,7 +613,7 @@ def copy_save_contents(src_dir, dst_dir, keep_option_sav=False):
 def discover_external_saves():
     """
     Find external Ocarina of Time Remake saves in Eden/Lichii/Fritchii and NX2navi.
-    Returns list of dicts: {name, path, slots_count, latest_date}.
+    Returns list of dicts: {label, source_name, path, slots}.
     """
     results = []
     appdata = os.environ.get("APPDATA") or ""
@@ -564,8 +657,8 @@ class HookshotLauncherApp(tk.Tk):
         save_launcher_config(self.game_dir)
 
         self.title(f"Hookshot Launcher & Profile Manager {LAUNCHER_VERSION}")
-        self.geometry("1120x740")
-        self.minsize(980, 660)
+        self.geometry("760x730")
+        self.minsize(680, 660)
         self.configure(bg=BG_MAIN)
 
         self._load_window_icon()
@@ -589,12 +682,25 @@ class HookshotLauncherApp(tk.Tk):
         self.latest_github_tag = None
         self.latest_release_notes = ""
 
+        # Settings dialog & live-sync state
+        self.settings_win = None
+        self.ui_vars = {}
+        self._suppress_autosave = False
+        self._slider_save_job = None
+        self._last_ini_mtime = 0.0
+        self._last_lang_mtime = 0.0
+        self._last_save_mtime = 0.0
+        self._last_ver_mtime = 0.0
+        self.game_proc = None
+        self._was_game_running = False
+
         # Initialize data
         self._read_version_file()
         self._init_profiles_system()
         self._load_options_and_language()
+        self._record_file_mtimes()
 
-        # Build UI
+        # Build UI (Focused on Save Profiles, with Settings in dedicated modal menu)
         self._build_header()
         self._build_update_banner()
         self._build_main_body()
@@ -602,10 +708,11 @@ class HookshotLauncherApp(tk.Tk):
 
         # Populate UI controls
         self._refresh_profiles_ui()
-        self._populate_settings_ui()
+        self._update_play_button_state()
 
-        # Start async GitHub update check
+        # Start async GitHub update check & live monitor loop
         threading.Thread(target=self._check_updates_background, daemon=True).start()
+        self.after(800, self._poll_live_state)
 
     def _load_window_icon(self):
         bundle_dir = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
@@ -613,7 +720,6 @@ class HookshotLauncherApp(tk.Tk):
             os.path.join(self.game_dir, "hookshot.ico"),
             os.path.join(bundle_dir, "hookshot.ico"),
             os.path.join(bundle_dir, "assets", "hookshot.ico"),
-            os.path.expandvars(r"%LOCALAPPDATA%\HookshotBuilder\versions\v2.0.12\HookshotBuilder\tools\work\hookshot.ico"),
         ]
         self.icon_path = None
         for p in ico_candidates:
@@ -705,8 +811,20 @@ class HookshotLauncherApp(tk.Tk):
         )
 
     # -----------------------------------------------------------------------
-    # Version & Builder Detection
+    # Version, File Timestamps & Running Game Detection
     # -----------------------------------------------------------------------
+    def _get_file_mtime(self, path):
+        try:
+            return os.path.getmtime(path) if os.path.isfile(path) else 0.0
+        except Exception:
+            return 0.0
+
+    def _record_file_mtimes(self):
+        self._last_ini_mtime = self._get_file_mtime(os.path.join(self.game_dir, "hookshot_options.ini"))
+        self._last_lang_mtime = self._get_file_mtime(os.path.join(self.game_dir, "language.txt"))
+        self._last_ver_mtime = self._get_file_mtime(os.path.join(self.game_dir, "hookshot_version.txt"))
+        self._last_save_mtime = get_folder_latest_mtime(get_active_save_dir(self.game_dir))
+
     def _read_version_file(self):
         ver_file = os.path.join(self.game_dir, "hookshot_version.txt")
         self.hookshot_version = "No detectado"
@@ -744,6 +862,68 @@ class HookshotLauncherApp(tk.Tk):
 
     def is_hookshot_installed(self):
         return os.path.isfile(os.path.join(self.game_dir, "hookshot.exe"))
+
+    def is_game_running(self):
+        if self.game_proc is not None and self.game_proc.poll() is None:
+            return True
+        pids = find_running_pids_by_name("hookshot.exe")
+        return len(pids) > 0
+
+    def _settings_window_alive(self):
+        return self.settings_win is not None and bool(self.settings_win.winfo_exists())
+
+    # -----------------------------------------------------------------------
+    # Live State Polling (Game Running + In-Game Option & Save Changes)
+    # -----------------------------------------------------------------------
+    def _poll_live_state(self):
+        try:
+            # 1. Check if game is running or just closed
+            running_now = self.is_game_running()
+            if running_now != self._was_game_running:
+                prev_running = self._was_game_running
+                self._was_game_running = running_now
+                self._update_play_button_state()
+                if prev_running and not running_now:
+                    self.game_proc = None
+                    self._on_game_closed()
+
+            # 2. Check if hookshot_options.ini or language.txt changed externally (e.g. via Insert menu in-game)
+            ini_path = os.path.join(self.game_dir, "hookshot_options.ini")
+            lang_path = os.path.join(self.game_dir, "language.txt")
+            ini_mt = self._get_file_mtime(ini_path)
+            lang_mt = self._get_file_mtime(lang_path)
+
+            if (ini_mt and abs(ini_mt - self._last_ini_mtime) > 0.05) or (
+                lang_mt and abs(lang_mt - self._last_lang_mtime) > 0.05
+            ):
+                self._last_ini_mtime = ini_mt
+                self._last_lang_mtime = lang_mt
+                self._load_options_and_language()
+                self._update_footer_summary()
+                if self._settings_window_alive():
+                    self._populate_settings_ui()
+                self.status_var.set("🔄 Ajustes sincronizados en vivo desde el juego.")
+
+            # 3. Check if save files changed in user/save/<uid> while playing
+            save_mt = get_folder_latest_mtime(get_active_save_dir(self.game_dir))
+            if save_mt and abs(save_mt - self._last_save_mtime) > 0.05:
+                self._last_save_mtime = save_mt
+                self.sync_active_save_to_current_profile()
+                self._refresh_profiles_ui()
+                self.status_var.set("💾 Nueva partida detectada y sincronizada en vivo.")
+
+            # 4. Check if hookshot_version.txt changed after an update
+            ver_mt = self._get_file_mtime(os.path.join(self.game_dir, "hookshot_version.txt"))
+            if ver_mt and abs(ver_mt - self._last_ver_mtime) > 0.05:
+                self._last_ver_mtime = ver_mt
+                self._read_version_file()
+                self.subtitle_var.set(f"Ocarina of Time PC  •  Motor: {self.hookshot_version}")
+                if self.latest_github_tag:
+                    self._apply_update_check_result()
+        except Exception:
+            pass
+        finally:
+            self.after(1000, self._poll_live_state)
 
     # -----------------------------------------------------------------------
     # Profiles System
@@ -786,6 +966,7 @@ class HookshotLauncherApp(tk.Tk):
             pass
 
     def sync_active_save_to_current_profile(self):
+        """Copy whatever is in user/save/<uid> back to profiles/<active>."""
         active_name = self.profiles_meta.get("active", "Principal")
         profile_folder = os.path.join(self.profiles_dir, active_name)
         active_save_dir = get_active_save_dir(self.game_dir)
@@ -793,6 +974,7 @@ class HookshotLauncherApp(tk.Tk):
             copy_save_contents(active_save_dir, profile_folder)
 
     def activate_profile(self, profile_name):
+        """Switch active profile: save current user/save/<uid> to previous profile, then load profile_name into user/save/<uid>."""
         if profile_name not in self.profiles_meta["profiles"]:
             return
         self.sync_active_save_to_current_profile()
@@ -804,6 +986,7 @@ class HookshotLauncherApp(tk.Tk):
 
         self.profiles_meta["active"] = profile_name
         self._save_profiles_meta()
+        self._last_save_mtime = get_folder_latest_mtime(active_save_dir)
 
     # -----------------------------------------------------------------------
     # Configuration Read / Write (hookshot_options.ini & language.txt)
@@ -853,7 +1036,9 @@ class HookshotLauncherApp(tk.Tk):
                 pass
 
     def save_options_and_language(self, show_toast=False):
-        self._collect_ui_to_options()
+        """Write hookshot_options.ini (preserving pad_* and key_*) and language.txt."""
+        if self._settings_window_alive():
+            self._collect_ui_to_options()
         os.makedirs(self.game_dir, exist_ok=True)
 
         ini_file = os.path.join(self.game_dir, "hookshot_options.ini")
@@ -913,13 +1098,23 @@ class HookshotLauncherApp(tk.Tk):
             messagebox.showerror("Error al guardar idioma", f"No se pudo escribir language.txt:\n{e}")
             return False
 
+        self._last_ini_mtime = self._get_file_mtime(ini_file)
+        self._last_lang_mtime = self._get_file_mtime(lang_file)
         self._update_footer_summary()
         if show_toast:
-            self.status_var.set("✔ Configuración e idioma guardados correctamente.")
+            self.status_var.set("✔ Ajuste guardado automáticamente.")
+            if hasattr(self, "settings_status_var") and self._settings_window_alive():
+                now_str = datetime.datetime.now().strftime("%H:%M:%S")
+                self.settings_status_var.set(f"✔ Guardado automático activo ({now_str})")
         return True
 
+    def _on_any_setting_changed(self, _event=None):
+        if self._suppress_autosave:
+            return
+        self.save_options_and_language(show_toast=True)
+
     # -----------------------------------------------------------------------
-    # UI Construction
+    # UI Construction (Main Window)
     # -----------------------------------------------------------------------
     def _build_header(self):
         header = tk.Frame(self, bg=BG_PANEL, height=68, highlightthickness=1, highlightbackground=BORDER_COLOR)
@@ -927,7 +1122,7 @@ class HookshotLauncherApp(tk.Tk):
         header.pack_propagate(False)
 
         left = tk.Frame(header, bg=BG_PANEL)
-        left.pack(side="left", padx=18, pady=8)
+        left.pack(side="left", padx=16, pady=8)
 
         self.header_icon_img = None
         if HAS_PIL and self.icon_path and os.path.isfile(self.icon_path):
@@ -935,7 +1130,7 @@ class HookshotLauncherApp(tk.Tk):
                 im = Image.open(self.icon_path).convert("RGBA").resize((42, 42), Image.LANCZOS)
                 self.header_icon_img = ImageTk.PhotoImage(im)
                 lbl_ico = tk.Label(left, image=self.header_icon_img, bg=BG_PANEL)
-                lbl_ico.pack(side="left", padx=(0, 12))
+                lbl_ico.pack(side="left", padx=(0, 10))
             except Exception:
                 pass
 
@@ -947,11 +1142,11 @@ class HookshotLauncherApp(tk.Tk):
             text="HOOKSHOT LAUNCHER",
             bg=BG_PANEL,
             fg=ACCENT_GOLD,
-            font=("Segoe UI", 14, "bold"),
+            font=("Segoe UI", 13, "bold"),
         ).pack(anchor="w")
 
         self.subtitle_var = tk.StringVar(
-            value=f"The Legend of Zelda: Ocarina of Time PC  •  Motor: {self.hookshot_version}  •  {self.game_dir}"
+            value=f"Ocarina of Time PC  •  Motor: {self.hookshot_version}"
         )
         tk.Label(
             title_box,
@@ -961,27 +1156,45 @@ class HookshotLauncherApp(tk.Tk):
             font=("Segoe UI", 9),
         ).pack(anchor="w")
 
+        # Right quick-action buttons
         right = tk.Frame(header, bg=BG_PANEL)
-        right.pack(side="right", padx=16, pady=12)
+        right.pack(side="right", padx=14, pady=12)
 
-        self.version_badge_var = tk.StringVar(value=f"🔄 Comprobando updates...")
+        self.version_badge_var = tk.StringVar(value="🔄 Updates...")
         self.version_badge = tk.Label(
             right,
             textvariable=self.version_badge_var,
             bg=BG_CARD,
             fg=ACCENT_BLUE,
             font=("Segoe UI", 9, "bold"),
-            padx=10,
+            padx=8,
             pady=5,
         )
-        self.version_badge.pack(side="left", padx=(0, 10))
+        self.version_badge.pack(side="left", padx=(0, 8))
 
-        self._make_flat_button(right, "📁 Mods", self._open_mods_folder).pack(side="left", padx=3)
-        self._make_flat_button(right, "📂 Carpeta", self._open_game_folder).pack(side="left", padx=3)
-        self._make_flat_button(right, "📄 Log", self._open_log_file).pack(side="left", padx=3)
-        self._make_flat_button(right, "⚙ Ruta", self._change_game_dir).pack(side="left", padx=3)
+        btn_cfg = tk.Button(
+            right,
+            text="⚙ Opciones",
+            command=self._open_settings_dialog,
+            bg=ACCENT_GOLD,
+            fg="#0d1117",
+            activebackground=ACCENT_GOLD_HOVER,
+            activeforeground="#0d1117",
+            relief="flat",
+            font=("Segoe UI", 9, "bold"),
+            padx=10,
+            pady=4,
+            cursor="hand2",
+        )
+        btn_cfg.pack(side="left", padx=3)
+
+        self._make_flat_button(right, "📁 Mods", self._open_mods_folder).pack(side="left", padx=2)
+        self._make_flat_button(right, "📂 Carpeta", self._open_game_folder).pack(side="left", padx=2)
+        self._make_flat_button(right, "📄 Log", self._open_log_file).pack(side="left", padx=2)
+        self._make_flat_button(right, "📍 Ruta", self._change_game_dir).pack(side="left", padx=2)
 
     def _build_update_banner(self):
+        """Hidden banner that appears when a new Hookshot update is available or when Hookshot is not installed."""
         self.banner_frame = tk.Frame(self, bg="#1c2d42", highlightthickness=1, highlightbackground=ACCENT_BLUE)
         self.banner_label_var = tk.StringVar(value="")
         tk.Label(
@@ -989,12 +1202,12 @@ class HookshotLauncherApp(tk.Tk):
             textvariable=self.banner_label_var,
             bg="#1c2d42",
             fg=FG_TEXT,
-            font=("Segoe UI", 10, "bold"),
-        ).pack(side="left", padx=16, pady=8)
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side="left", padx=12, pady=8)
 
         self.banner_btn_skip = tk.Button(
             self.banner_frame,
-            text="Omitir versión",
+            text="Omitir",
             command=self._skip_update_version,
             bg=BG_CARD,
             fg=FG_MUTED,
@@ -1002,11 +1215,11 @@ class HookshotLauncherApp(tk.Tk):
             activeforeground=FG_TEXT,
             relief="flat",
             font=("Segoe UI", 9),
-            padx=10,
+            padx=8,
             pady=3,
             cursor="hand2",
         )
-        self.banner_btn_skip.pack(side="right", padx=(4, 14), pady=6)
+        self.banner_btn_skip.pack(side="right", padx=(4, 12), pady=6)
 
         self.banner_btn_notes = tk.Button(
             self.banner_frame,
@@ -1018,7 +1231,7 @@ class HookshotLauncherApp(tk.Tk):
             activeforeground=FG_TEXT,
             relief="flat",
             font=("Segoe UI", 9),
-            padx=10,
+            padx=8,
             pady=3,
             cursor="hand2",
         )
@@ -1026,7 +1239,7 @@ class HookshotLauncherApp(tk.Tk):
 
         self.banner_btn_action = tk.Button(
             self.banner_frame,
-            text="⬇ Actualizar Ahora",
+            text="⬇ Actualizar",
             command=self._trigger_update_or_install,
             bg=ACCENT_GOLD,
             fg="#0d1117",
@@ -1034,7 +1247,7 @@ class HookshotLauncherApp(tk.Tk):
             activeforeground="#0d1117",
             relief="flat",
             font=("Segoe UI", 9, "bold"),
-            padx=12,
+            padx=10,
             pady=3,
             cursor="hand2",
         )
@@ -1042,9 +1255,9 @@ class HookshotLauncherApp(tk.Tk):
 
         if not self.is_hookshot_installed():
             self.banner_label_var.set(
-                "⚠ No se encontró hookshot.exe en esta carpeta. Puedes descargarlo e instalarlo automáticamente."
+                "⚠ No se encontró hookshot.exe en esta carpeta. Descárgalo e instálalo con 1 clic."
             )
-            self.banner_btn_action.configure(text="⬇ Descargar e Instalar Hookshot")
+            self.banner_btn_action.configure(text="⬇ Instalar Hookshot")
             self.banner_btn_skip.pack_forget()
             self.banner_frame.pack(fill="x", padx=14, pady=(8, 0))
 
@@ -1052,89 +1265,104 @@ class HookshotLauncherApp(tk.Tk):
         body = tk.Frame(self, bg=BG_MAIN)
         body.pack(fill="both", expand=True, padx=14, pady=12)
 
-        left_panel = tk.Frame(
-            body, bg=BG_PANEL, width=410, highlightthickness=1, highlightbackground=BORDER_COLOR
-        )
-        left_panel.pack(side="left", fill="y", padx=(0, 10))
-        left_panel.pack_propagate(False)
-        self._build_profiles_panel(left_panel)
-
-        right_panel = tk.Frame(
+        main_panel = tk.Frame(
             body, bg=BG_PANEL, highlightthickness=1, highlightbackground=BORDER_COLOR
         )
-        right_panel.pack(side="left", fill="both", expand=True)
-        self._build_settings_panel(right_panel)
+        main_panel.pack(fill="both", expand=True)
+        self._build_profiles_panel(main_panel)
 
     def _build_profiles_panel(self, parent):
+        # Section Header
         hdr = tk.Frame(parent, bg=BG_PANEL)
-        hdr.pack(fill="x", padx=14, pady=(12, 6))
+        hdr.pack(fill="x", padx=18, pady=(14, 6))
         tk.Label(
             hdr,
             text="🛡 PERFILES DE GUARDADO (SAVES)",
             bg=BG_PANEL,
             fg=ACCENT_GOLD,
-            font=("Segoe UI", 11, "bold"),
+            font=("Segoe UI", 12, "bold"),
         ).pack(side="left")
 
+        tk.Button(
+            hdr,
+            text="⚙ Abrir Menú de Configuración (Gráficos, Audio y Controles)",
+            command=self._open_settings_dialog,
+            bg=BG_CARD,
+            fg=ACCENT_GOLD,
+            activebackground=BORDER_COLOR,
+            activeforeground=ACCENT_GOLD_HOVER,
+            relief="flat",
+            font=("Segoe UI", 9, "bold"),
+            padx=12,
+            pady=4,
+            cursor="hand2",
+        ).pack(side="right")
+
+        # Profile Selector Row
         prof_row = tk.Frame(parent, bg=BG_PANEL)
-        prof_row.pack(fill="x", padx=14, pady=4)
+        prof_row.pack(fill="x", padx=18, pady=6)
 
         tk.Label(prof_row, text="Perfil Activo:", bg=BG_PANEL, fg=FG_TEXT, font=("Segoe UI", 10, "bold")).pack(
-            side="left", padx=(0, 8)
+            side="left", padx=(0, 10)
         )
         self.profile_combo_var = tk.StringVar()
         self.profile_combo = ttk.Combobox(
-            prof_row, textvariable=self.profile_combo_var, state="readonly", width=24
+            prof_row, textvariable=self.profile_combo_var, state="readonly", width=32
         )
         self.profile_combo.pack(side="left", fill="x", expand=True)
         self.profile_combo.bind("<<ComboboxSelected>>", self._on_profile_selected)
 
+        # Profile Action Buttons Row 1
         btn_row1 = tk.Frame(parent, bg=BG_PANEL)
-        btn_row1.pack(fill="x", padx=14, pady=(6, 3))
-        self._make_flat_button(btn_row1, "+ Nuevo", self._create_new_profile, width=9).pack(
+        btn_row1.pack(fill="x", padx=18, pady=(6, 3))
+        self._make_flat_button(btn_row1, "+ Nuevo Perfil", self._create_new_profile).pack(
             side="left", padx=(0, 4), expand=True, fill="x"
         )
-        self._make_flat_button(btn_row1, "📋 Clonar", self._clone_current_profile, width=9).pack(
+        self._make_flat_button(btn_row1, "📋 Clonar", self._clone_current_profile).pack(
             side="left", padx=4, expand=True, fill="x"
         )
-        self._make_flat_button(btn_row1, "✏ Renombrar", self._rename_current_profile, width=10).pack(
+        self._make_flat_button(btn_row1, "✏ Renombrar", self._rename_current_profile).pack(
             side="left", padx=4, expand=True, fill="x"
         )
-        self._make_flat_button(btn_row1, "🗑 Borrar", self._delete_current_profile, width=8).pack(
+        self._make_flat_button(btn_row1, "🗑 Borrar", self._delete_current_profile).pack(
             side="left", padx=(4, 0), expand=True, fill="x"
         )
 
+        # Profile Action Buttons Row 2 (Backup & Emulator Sync)
         btn_row2 = tk.Frame(parent, bg=BG_PANEL)
-        btn_row2.pack(fill="x", padx=14, pady=(3, 8))
+        btn_row2.pack(fill="x", padx=18, pady=(3, 10))
         self._make_flat_button(btn_row2, "💾 Crear Backup ZIP", self._backup_profile_zip).pack(
             side="left", padx=(0, 4), expand=True, fill="x"
         )
         self._make_flat_button(btn_row2, "📦 Restaurar ZIP", self._restore_profile_zip).pack(
             side="left", padx=4, expand=True, fill="x"
         )
-        self._make_flat_button(btn_row2, "⇄ Emuladores / NX2", self._open_sync_dialog).pack(
+        self._make_flat_button(btn_row2, "⇄ Sincronizar Emuladores / NX2", self._open_sync_dialog).pack(
             side="left", padx=(4, 0), expand=True, fill="x"
         )
 
-        tk.Frame(parent, bg=BORDER_COLOR, height=1).pack(fill="x", padx=14, pady=4)
+        # Divider
+        tk.Frame(parent, bg=BORDER_COLOR, height=1).pack(fill="x", padx=18, pady=4)
 
+        # Save Slot Selector & Live Screenshot Card
         slot_hdr = tk.Frame(parent, bg=BG_PANEL)
-        slot_hdr.pack(fill="x", padx=14, pady=(4, 4))
+        slot_hdr.pack(fill="x", padx=18, pady=(6, 4))
         tk.Label(
-            slot_hdr, text="Vista Previa de Partida:", bg=BG_PANEL, fg=FG_MUTED, font=("Segoe UI", 9, "bold")
+            slot_hdr, text="Vista Previa de Partida Guardada:", bg=BG_PANEL, fg=FG_MUTED, font=("Segoe UI", 10, "bold")
         ).pack(side="left")
 
         self.slot_combo_var = tk.StringVar()
         self.slot_combo = ttk.Combobox(
-            slot_hdr, textvariable=self.slot_combo_var, state="readonly", width=22
+            slot_hdr, textvariable=self.slot_combo_var, state="readonly", width=34
         )
         self.slot_combo.pack(side="right")
         self.slot_combo.bind("<<ComboboxSelected>>", self._on_slot_selected)
 
+        # Screenshot Container (480 x 270, 16:9 ratio matching 543x306)
         self.preview_card = tk.Frame(
-            parent, bg="#090c10", width=376, height=212, highlightthickness=1, highlightbackground=BORDER_COLOR
+            parent, bg="#090c10", width=484, height=272, highlightthickness=1, highlightbackground=BORDER_COLOR
         )
-        self.preview_card.pack(padx=14, pady=6)
+        self.preview_card.pack(padx=18, pady=8)
         self.preview_card.pack_propagate(False)
 
         self.preview_img_label = tk.Label(
@@ -1142,15 +1370,16 @@ class HookshotLauncherApp(tk.Tk):
             text="Sin capturas en este perfil\n(Inicia el juego para crear una partida)",
             bg="#090c10",
             fg=FG_MUTED,
-            font=("Segoe UI", 9),
+            font=("Segoe UI", 10),
             justify="center",
         )
         self.preview_img_label.pack(fill="both", expand=True)
 
+        # Metadata Details Box
         meta_card = tk.Frame(
             parent, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER_COLOR
         )
-        meta_card.pack(fill="both", expand=True, padx=14, pady=(4, 12))
+        meta_card.pack(fill="both", expand=True, padx=18, pady=(4, 14))
 
         self.meta_location_var = tk.StringVar(value="📍 Zona: —")
         self.meta_age_var = tk.StringVar(value="🗡 Estado: —")
@@ -1162,39 +1391,91 @@ class HookshotLauncherApp(tk.Tk):
             textvariable=self.meta_location_var,
             bg=BG_CARD,
             fg=ACCENT_GOLD,
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", 11, "bold"),
             anchor="w",
-        ).pack(fill="x", padx=12, pady=(10, 3))
+        ).pack(fill="x", padx=14, pady=(10, 3))
 
+        info_row = tk.Frame(meta_card, bg=BG_CARD)
+        info_row.pack(fill="x", padx=14, pady=2)
         tk.Label(
-            meta_card,
+            info_row,
             textvariable=self.meta_age_var,
             bg=BG_CARD,
             fg=FG_TEXT,
             font=("Segoe UI", 9),
             anchor="w",
-        ).pack(fill="x", padx=12, pady=2)
+        ).pack(side="left", padx=(0, 18))
 
         tk.Label(
-            meta_card,
+            info_row,
             textvariable=self.meta_date_var,
             bg=BG_CARD,
             fg=FG_TEXT,
             font=("Segoe UI", 9),
             anchor="w",
-        ).pack(fill="x", padx=12, pady=2)
+        ).pack(side="left", padx=(0, 18))
 
         tk.Label(
-            meta_card,
+            info_row,
             textvariable=self.meta_slots_count_var,
             bg=BG_CARD,
             fg=FG_MUTED,
             font=("Segoe UI", 9),
             anchor="w",
-        ).pack(fill="x", padx=12, pady=(2, 8))
+        ).pack(side="left")
 
-    def _build_settings_panel(self, parent):
-        notebook = ttk.Notebook(parent)
+    # -----------------------------------------------------------------------
+    # Dedicated Settings Modal Window (Auto-Saved & Live-Synced)
+    # -----------------------------------------------------------------------
+    def _open_settings_dialog(self):
+        if self._settings_window_alive():
+            self.settings_win.deiconify()
+            self.settings_win.lift()
+            self.settings_win.focus_force()
+            return
+
+        win = tk.Toplevel(self)
+        win.title("Configuración de Hookshot (Guardado Automático en Vivo)")
+        win.geometry("760x540")
+        win.minsize(720, 500)
+        win.configure(bg=BG_MAIN)
+        win.transient(self)
+        if self.icon_path and os.path.isfile(self.icon_path):
+            try:
+                win.iconbitmap(default=self.icon_path)
+            except Exception:
+                pass
+
+        self.settings_win = win
+        self.ui_vars = {}
+
+        # Top bar inside settings modal
+        top_bar = tk.Frame(win, bg=BG_PANEL, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        top_bar.pack(fill="x", side="top")
+        tk.Label(
+            top_bar,
+            text="⚙ CONFIGURACIÓN DE HOOKSHOT",
+            bg=BG_PANEL,
+            fg=ACCENT_GOLD,
+            font=("Segoe UI", 11, "bold"),
+        ).pack(side="left", padx=16, pady=10)
+
+        self.settings_status_var = tk.StringVar(
+            value="✔ Guardado automático activo (los cambios en el juego también se reflejan aquí en vivo)"
+        )
+        tk.Label(
+            top_bar,
+            textvariable=self.settings_status_var,
+            bg=BG_PANEL,
+            fg="#3fb950",
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side="right", padx=16, pady=10)
+
+        # Notebook container
+        panel = tk.Frame(win, bg=BG_PANEL, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        panel.pack(fill="both", expand=True, padx=12, pady=12)
+
+        notebook = ttk.Notebook(panel)
         notebook.pack(fill="both", expand=True, padx=10, pady=10)
 
         self.tab_graphics = tk.Frame(notebook, bg=BG_PANEL)
@@ -1205,10 +1486,19 @@ class HookshotLauncherApp(tk.Tk):
         notebook.add(self.tab_system, text="  🌐 Idioma, Audio y Sistema  ")
         notebook.add(self.tab_controls, text="  🎮 Controles y Cámara  ")
 
-        self.ui_vars = {}
         self._build_tab_graphics(self.tab_graphics)
         self._build_tab_system(self.tab_system)
         self._build_tab_controls(self.tab_controls)
+
+        self._load_options_and_language()
+        self._populate_settings_ui()
+
+        def _on_close():
+            self.settings_win = None
+            self.ui_vars = {}
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", _on_close)
 
     def _build_tab_graphics(self, parent):
         cols = tk.Frame(parent, bg=BG_PANEL)
@@ -1285,7 +1575,7 @@ class HookshotLauncherApp(tk.Tk):
         tk.Label(
             info_card,
             text="💡 Atajos dentro del juego:\n"
-            "• Tecla Insert (o Select + Start en mando): Abre el menú interno de Hookshot.\n"
+            "• Tecla Insert / F1 (o Select + Start en mando): Abre el menú interno de Hookshot.\n"
             "• Tecla F11: Alterna entre Ventana y Pantalla Completa.\n"
             "• Teclas - y = : Ajustan la sensibilidad del ratón en directo.",
             bg=BG_CARD,
@@ -1357,43 +1647,24 @@ class HookshotLauncherApp(tk.Tk):
         right = tk.Frame(footer, bg=BG_PANEL)
         right.pack(side="right", padx=18, pady=10)
 
-        btn_save = tk.Button(
-            right,
-            text="💾 Guardar Ajustes",
-            command=lambda: self.save_options_and_language(show_toast=True),
-            bg=BG_CARD,
-            fg=FG_TEXT,
-            activebackground=BORDER_COLOR,
-            activeforeground=FG_TEXT,
-            relief="flat",
-            font=("Segoe UI", 10, "bold"),
-            padx=16,
-            pady=8,
-            cursor="hand2",
-        )
-        btn_save.pack(side="left", padx=(0, 10))
-
         self.play_btn = tk.Button(
             right,
             text="▶  JUGAR HOOKSHOT",
-            command=self._launch_game_or_install,
+            command=self._on_play_or_stop_clicked,
             bg=ACCENT_GREEN,
             fg="#ffffff",
             activebackground=ACCENT_GREEN_HOVER,
             activeforeground="#ffffff",
             relief="flat",
             font=("Segoe UI", 11, "bold"),
-            padx=24,
+            padx=26,
             pady=8,
             cursor="hand2",
         )
         self.play_btn.pack(side="left")
 
-        if not self.is_hookshot_installed():
-            self.play_btn.configure(text="⬇  INSTALAR HOOKSHOT", bg=ACCENT_GOLD, fg="#0d1117")
-
     # -----------------------------------------------------------------------
-    # UI Widget Helpers
+    # UI Widget Helpers (Bound for Instant Auto-Save)
     # -----------------------------------------------------------------------
     def _make_flat_button(self, parent, text, command, width=None):
         kw = dict(
@@ -1432,6 +1703,8 @@ class HookshotLauncherApp(tk.Tk):
         self.ui_vars[key] = ("combo", var, items)
         if on_change:
             combo.bind("<<ComboboxSelected>>", on_change)
+        else:
+            combo.bind("<<ComboboxSelected>>", self._on_any_setting_changed)
 
     def _add_slider_row(self, parent, key, label_text, min_val, max_val, step):
         row = tk.Frame(parent, bg=BG_PANEL)
@@ -1453,6 +1726,13 @@ class HookshotLauncherApp(tk.Tk):
             snapped = max(min_val, min(max_val, snapped))
             var.set(snapped)
             val_label_var.set(str(snapped))
+            if not self._suppress_autosave:
+                if self._slider_save_job is not None:
+                    try:
+                        self.after_cancel(self._slider_save_job)
+                    except Exception:
+                        pass
+                self._slider_save_job = self.after(150, self._on_any_setting_changed)
 
         scale = ttk.Scale(row, from_=min_val, to=max_val, orient="horizontal", command=_on_slide, length=150)
         scale.pack(side="right", padx=(6, 4))
@@ -1461,7 +1741,7 @@ class HookshotLauncherApp(tk.Tk):
 
     def _add_check_row(self, parent, key, label_text):
         var = tk.IntVar(value=0)
-        chk = ttk.Checkbutton(parent, text=label_text, variable=var)
+        chk = ttk.Checkbutton(parent, text=label_text, variable=var, command=self._on_any_setting_changed)
         chk.pack(anchor="w", pady=2)
         self.ui_vars[key] = ("check", var)
 
@@ -1469,34 +1749,40 @@ class HookshotLauncherApp(tk.Tk):
     # Populate & Collect Settings UI
     # -----------------------------------------------------------------------
     def _populate_settings_ui(self):
-        for key, item in self.ui_vars.items():
-            kind = item[0]
-            if key == "_language":
-                raw_val = self.current_language
-            else:
-                raw_val = self.options_data.get(key, DEFAULT_OPTIONS.get(key, 0))
+        self._suppress_autosave = True
+        try:
+            for key, item in self.ui_vars.items():
+                kind = item[0]
+                if key == "_language":
+                    raw_val = self.current_language
+                else:
+                    raw_val = self.options_data.get(key, DEFAULT_OPTIONS.get(key, 0))
 
-            if kind == "combo":
-                _, var, choices = item
-                matched_label = choices[0][1]
-                for code, label in choices:
-                    if code == raw_val:
-                        matched_label = label
-                        break
-                var.set(matched_label)
-            elif kind == "slider":
-                _, var, scale, val_label_var, min_v, max_v, _ = item
-                clamped = max(min_v, min(max_v, int(raw_val)))
-                var.set(clamped)
-                scale.set(clamped)
-                val_label_var.set(str(clamped))
-            elif kind == "check":
-                _, var = item
-                var.set(1 if int(raw_val) != 0 else 0)
+                if kind == "combo":
+                    _, var, choices = item
+                    matched_label = choices[0][1]
+                    for code, label in choices:
+                        if code == raw_val:
+                            matched_label = label
+                            break
+                    var.set(matched_label)
+                elif kind == "slider":
+                    _, var, scale, val_label_var, min_v, max_v, _ = item
+                    clamped = max(min_v, min(max_v, int(raw_val)))
+                    var.set(clamped)
+                    scale.set(clamped)
+                    val_label_var.set(str(clamped))
+                elif kind == "check":
+                    _, var = item
+                    var.set(1 if int(raw_val) != 0 else 0)
+        finally:
+            self._suppress_autosave = False
 
         self._update_footer_summary()
 
     def _collect_ui_to_options(self):
+        if not self.ui_vars:
+            return
         for key, item in self.ui_vars.items():
             kind = item[0]
             if kind == "combo":
@@ -1519,19 +1805,23 @@ class HookshotLauncherApp(tk.Tk):
                 self.options_data[key] = 1 if int(var.get()) != 0 else 0
 
     def _on_preset_changed(self, _event=None):
+        """Apply Hookshot's exact preset rules from vk_menu.cpp apply_preset() and auto-save."""
+        if self._suppress_autosave:
+            return
         self._collect_ui_to_options()
         p = self.options_data.get("quality_preset", 0)
-        if p == 1:
+        if p == 1:  # Minimum (4GB)
             self.options_data.update({"resolution": 4, "upscaling": 2, "sharpness": 30, "frame_generation": 2, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 1})
-        elif p == 2:
+        elif p == 2:  # Low (6GB)
             self.options_data.update({"resolution": 2, "upscaling": 2, "sharpness": 30, "frame_generation": 2, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 1})
-        elif p == 3:
+        elif p == 3:  # Balanced (8GB)
             self.options_data.update({"resolution": 1, "upscaling": 1, "sharpness": 30, "frame_generation": 2, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 0})
-        elif p == 4:
+        elif p == 4:  # High (12GB)
             self.options_data.update({"resolution": 1, "upscaling": 2, "sharpness": 40, "frame_generation": 2, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 0})
-        elif p == 5:
+        elif p == 5:  # Ultra (16GB+)
             self.options_data.update({"resolution": 1, "upscaling": 2, "sharpness": 50, "frame_generation": 3, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 0})
         self._populate_settings_ui()
+        self.save_options_and_language(show_toast=True)
 
     def _update_footer_summary(self):
         active_prof = self.profiles_meta.get("active", "Principal")
@@ -1591,7 +1881,7 @@ class HookshotLauncherApp(tk.Tk):
         if HAS_PIL and slot_data.get("jpeg_bytes"):
             try:
                 im = Image.open(io.BytesIO(slot_data["jpeg_bytes"])).convert("RGB")
-                im = im.resize((374, 210), Image.LANCZOS)
+                im = im.resize((480, 270), Image.LANCZOS)
                 self.preview_photo = ImageTk.PhotoImage(im)
                 self.preview_img_label.configure(image=self.preview_photo, text="")
                 return
@@ -1792,6 +2082,7 @@ class HookshotLauncherApp(tk.Tk):
             messagebox.showerror("Error al restaurar", f"No se pudo restaurar el ZIP:\n{e}", parent=self)
 
     def _open_sync_dialog(self):
+        """Modal window to import/export saves with Eden/Lichii/Fritchii and NX2navi."""
         ext_saves = discover_external_saves()
         dlg = tk.Toplevel(self)
         dlg.title("Sincronizar Partidas con Emuladores y NX2navi")
@@ -1897,7 +2188,7 @@ class HookshotLauncherApp(tk.Tk):
             copy_save_contents(folder, prof_dir, keep_option_sav=True)
             copy_save_contents(prof_dir, get_active_save_dir(self.game_dir))
             self._refresh_profiles_ui()
-            self.status_var.set(f"✔ Partida importada desde carpeta externa.")
+            self.status_var.set("✔ Partida importada desde carpeta externa.")
             dlg.destroy()
 
         self._make_flat_button(dlg, "📂 Importar desde otra carpeta...", _import_custom_folder).pack(
@@ -1939,20 +2230,19 @@ class HookshotLauncherApp(tk.Tk):
         self._read_version_file()
         self._init_profiles_system()
         self._load_options_and_language()
+        self._record_file_mtimes()
         self._refresh_profiles_ui()
-        self._populate_settings_ui()
-        self.subtitle_var.set(
-            f"The Legend of Zelda: Ocarina of Time PC  •  Motor: {self.hookshot_version}  •  {self.game_dir}"
-        )
+        if self._settings_window_alive():
+            self._populate_settings_ui()
+        self.subtitle_var.set(f"Ocarina of Time PC  •  Motor: {self.hookshot_version}")
+        self._update_play_button_state()
         if self.is_hookshot_installed():
-            self.play_btn.configure(text="▶  JUGAR HOOKSHOT", bg=ACCENT_GREEN, fg="#ffffff")
             self.banner_frame.pack_forget()
         else:
-            self.play_btn.configure(text="⬇  INSTALAR HOOKSHOT", bg=ACCENT_GOLD, fg="#0d1117")
             self.banner_label_var.set(
-                "⚠ No se encontró hookshot.exe en esta carpeta. Puedes descargarlo e instalarlo automáticamente."
+                "⚠ No se encontró hookshot.exe en esta carpeta. Descárgalo e instálalo con 1 clic."
             )
-            self.banner_btn_action.configure(text="⬇ Descargar e Instalar Hookshot")
+            self.banner_btn_action.configure(text="⬇ Instalar Hookshot")
             self.banner_frame.pack(fill="x", padx=14, pady=(8, 0))
 
     # -----------------------------------------------------------------------
@@ -2004,20 +2294,21 @@ class HookshotLauncherApp(tk.Tk):
                     return
         except Exception:
             pass
-        self.after(0, lambda: self.version_badge_var.set(f"Motor: {self.hookshot_version} (Offline)"))
+        self.after(0, lambda: self.version_badge_var.set(f"Motor: {self.hookshot_version}"))
 
     def _apply_update_check_result(self):
         tag = self.latest_github_tag
         if not self.is_hookshot_installed():
-            self.version_badge_var.set(f"Última versión: {tag} (No instalado)")
+            self.version_badge_var.set(f"Última: {tag}")
             self.version_badge.configure(fg=ACCENT_GOLD)
             return
 
         if self.hookshot_version == tag:
-            self.version_badge_var.set(f"✔ Hookshot {tag} (Al día)")
+            self.version_badge_var.set(f"✔ {tag} (Al día)")
             self.version_badge.configure(fg="#3fb950")
+            self.banner_frame.pack_forget()
         else:
-            self.version_badge_var.set(f"✨ Update disponible: {tag}")
+            self.version_badge_var.set(f"✨ Update: {tag}")
             self.version_badge.configure(fg=ACCENT_GOLD)
             if tag != self._get_skipped_version():
                 self.banner_label_var.set(
@@ -2056,6 +2347,7 @@ class HookshotLauncherApp(tk.Tk):
             self._download_and_run_builder(update_mode=True)
 
     def _download_and_run_builder(self, update_mode=False):
+        """If HookshotBuilder.exe exists locally, run it; otherwise download it from GitHub Releases and execute it."""
         if self.builder_exe_path and os.path.isfile(self.builder_exe_path):
             try:
                 cmd = [self.builder_exe_path]
@@ -2139,13 +2431,67 @@ class HookshotLauncherApp(tk.Tk):
         threading.Thread(target=_worker, daemon=True).start()
 
     # -----------------------------------------------------------------------
-    # Launch Game
+    # Dynamic Play / Stop Button & Process Control
     # -----------------------------------------------------------------------
-    def _launch_game_or_install(self):
+    def _update_play_button_state(self):
+        if not self.is_hookshot_installed():
+            self.play_btn.configure(
+                text="⬇  INSTALAR HOOKSHOT",
+                bg=ACCENT_GOLD,
+                fg="#0d1117",
+                activebackground=ACCENT_GOLD_HOVER,
+                activeforeground="#0d1117",
+            )
+            return
+
+        if self.is_game_running():
+            self.play_btn.configure(
+                text="⏹  DETENER HOOKSHOT",
+                bg=ACCENT_RED,
+                fg="#ffffff",
+                activebackground=ACCENT_RED_HOVER,
+                activeforeground="#ffffff",
+            )
+            self.status_var.set("🟢 Hookshot en ejecución (los cambios de opciones y partidas se sincronizan en vivo).")
+        else:
+            self.play_btn.configure(
+                text="▶  JUGAR HOOKSHOT",
+                bg=ACCENT_GREEN,
+                fg="#ffffff",
+                activebackground=ACCENT_GREEN_HOVER,
+                activeforeground="#ffffff",
+            )
+
+    def _on_play_or_stop_clicked(self):
         if not self.is_hookshot_installed():
             self._trigger_update_or_install()
             return
 
+        if self.is_game_running():
+            self._stop_running_game()
+        else:
+            self._launch_game()
+
+    def _stop_running_game(self):
+        self.status_var.set("⏹ Deteniendo Hookshot...")
+        self.update_idletasks()
+
+        if self.game_proc is not None and self.game_proc.poll() is None:
+            try:
+                self.game_proc.terminate()
+            except Exception:
+                pass
+
+        pids = find_running_pids_by_name("hookshot.exe")
+        if pids:
+            terminate_pids(pids)
+
+        self.game_proc = None
+        self._was_game_running = False
+        self._update_play_button_state()
+        self._on_game_closed()
+
+    def _launch_game(self):
         if not self.save_options_and_language(show_toast=False):
             return
 
@@ -2160,27 +2506,23 @@ class HookshotLauncherApp(tk.Tk):
         self.update_idletasks()
 
         try:
-            proc = subprocess.Popen([exe_path], cwd=self.game_dir, env=env)
+            self.game_proc = subprocess.Popen([exe_path], cwd=self.game_dir, env=env)
         except Exception as e:
             messagebox.showerror("Error al iniciar", f"No se pudo ejecutar hookshot.exe:\n{e}", parent=self)
             return
 
-        self.iconify()
-
-        def _wait_game():
-            proc.wait()
-            self.after(0, self._on_game_closed)
-
-        threading.Thread(target=_wait_game, daemon=True).start()
+        self._was_game_running = True
+        self._update_play_button_state()
 
     def _on_game_closed(self):
-        self.deiconify()
-        self.lift()
         self.sync_active_save_to_current_profile()
         self._load_options_and_language()
+        self._record_file_mtimes()
         self._refresh_profiles_ui()
-        self._populate_settings_ui()
-        self.status_var.set("✔ Juego cerrado. Progreso del perfil sincronizado automáticamente.")
+        if self._settings_window_alive():
+            self._populate_settings_ui()
+        self._update_play_button_state()
+        self.status_var.set("✔ Juego cerrado. Progreso del perfil y ajustes sincronizados automáticamente.")
 
 
 def run_smoke_test():
@@ -2200,4 +2542,12 @@ if __name__ == "__main__":
     if "--smoke-test" in sys.argv:
         sys.exit(run_smoke_test())
     app = HookshotLauncherApp()
+    if "--ui-test" in sys.argv:
+        def _auto_verify():
+            app.update()
+            app._open_settings_dialog()
+            app.update()
+            print("[UITest] Main UI and Settings modal initialized and verified successfully.")
+            app.destroy()
+        app.after(800, _auto_verify)
     app.mainloop()
