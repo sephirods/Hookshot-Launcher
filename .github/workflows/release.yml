@@ -1,0 +1,81 @@
+name: Build & Publish Hookshot Launcher Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pillow pyinstaller
+
+      - name: Generate multi-size icon and Win32 resource
+        run: |
+          python src/make_icon_res.py
+
+      - name: Build Standalone HookshotLauncher.exe
+        run: |
+          pyinstaller --noconfirm --onefile --windowed --icon="assets/hookshot.ico" --add-data "assets/hookshot.ico;assets" --name "HookshotLauncher" hookshot_launcher.py
+          Copy-Item "dist/HookshotLauncher.exe" "./HookshotLauncher.exe" -Force
+
+      - name: Build Standalone Installer (HookshotLauncher-Setup.exe)
+        run: |
+          pyinstaller --noconfirm --onefile --windowed --icon="assets/hookshot.ico" --add-data "HookshotLauncher.exe;." --add-data "hookshot_launcher.py;." --add-data "assets/hookshot.ico;assets" --name "HookshotLauncher-Setup" install.py
+          Copy-Item "dist/HookshotLauncher-Setup.exe" "./HookshotLauncher-Setup.exe" -Force
+
+      - name: Package Portable ZIP
+        run: |
+          New-Item -ItemType Directory -Force -Path "portable_pkg/assets" | Out-Null
+          Copy-Item "HookshotLauncher.exe" "portable_pkg/"
+          Copy-Item "hookshot_launcher.py" "portable_pkg/"
+          Copy-Item "install.py" "portable_pkg/"
+          Copy-Item "README.md" "portable_pkg/"
+          Copy-Item "LICENSE" "portable_pkg/"
+          Copy-Item "assets/hookshot.ico" "portable_pkg/hookshot.ico"
+          Copy-Item "assets/hookshot.ico" "portable_pkg/assets/hookshot.ico"
+          Compress-Archive -Path "portable_pkg/*" -DestinationPath "HookshotLauncher-Portable.zip" -Force
+
+      - name: Create or Update GitHub Release v1.0.0
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "v1.0.0"
+          $notes = @"
+          ## 🛡 Hookshot Launcher & Profile Manager v1.0.0
+
+          ### ✨ Novedades en esta versión
+          - **Gestor de Perfiles de Guardado (Save Profiles):** Crea, clona, renombra y alterna perfiles con copias de seguridad ZIP en 1 clic e importación/exportación directa con **Eden, Lichii, Fritchii** y **NX2navi**.
+          - **Visor de Capturas Reales (`caption.sav`):** Muestra la captura JPEG de 543×306, la zona actual de Hyrule, la edad de Link y la fecha exacta de cada uno de los 6 slots.
+          - **Configurador Gráfico e Idioma Completo:** Edita `hookshot_options.ini` y `language.txt` (`es-419`, `es`, `en-US`, etc.) antes de abrir el juego (Presets VRAM, DLSS/DLAA, 60–240 FPS, FrameGen, Ultrawide, HDR, Giroscopio y Cámara Nativa).
+          - **Actualizador y Auto-Instalador (Bootstrap):** Notifica nuevas versiones de `NotRexed/Hookshot` y descarga/ejecuta automáticamente `HookshotBuilder.exe` si el juego aún no está instalado.
+
+          ### 📦 Archivos de Descarga
+          - **`HookshotLauncher-Setup.exe`**: Instalador automático (instala el Launcher y crea los accesos directos en Escritorio y Menú Inicio con el icono oficial).
+          - **`HookshotLauncher.exe`**: Ejecutable standalone directo (no requiere Python instalado).
+          - **`HookshotLauncher-Portable.zip`**: Paquete portable completo.
+          "@
+          gh release view $tag > $null 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --clobber
+          } else {
+            gh release create $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --title "Hookshot Launcher & Profile Manager v1.0.0" --notes $notes
+          }
