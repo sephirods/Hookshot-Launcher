@@ -694,7 +694,9 @@ def discover_external_saves():
     localappdata = os.environ.get("LOCALAPPDATA") or ""
 
     candidates = [
-        ("Eden / Lichii / Fritchii", os.path.join(appdata, "eden", "nand", "user", "save")),
+        ("Fritchii v5.8+ (AppData)", os.path.join(appdata, "fritchii", "nand", "user", "save")),
+        ("Lichii (AppData)", os.path.join(appdata, "lichii", "nand", "user", "save")),
+        ("Eden / Fritchii clásico", os.path.join(appdata, "eden", "nand", "user", "save")),
         ("NX2navi (D:\\Navi)", r"D:\Navi\profile\save"),
         ("NX2navi (AppData)", os.path.join(localappdata, "Programs", "NX2navi", "game", "profile", "save")),
         ("NX2navi (C:\\Games)", r"C:\Games\Ocarina\profile\save"),
@@ -2238,7 +2240,7 @@ class HookshotLauncherApp(tk.Tk):
         ext_saves = discover_external_saves()
         dlg = tk.Toplevel(self)
         dlg.title("Sincronizar Partidas con Emuladores y NX2navi")
-        dlg.geometry("620x360")
+        dlg.geometry("620x400")
         dlg.configure(bg=BG_PANEL)
         dlg.transient(self)
         dlg.grab_set()
@@ -2262,7 +2264,7 @@ class HookshotLauncherApp(tk.Tk):
         if not ext_saves:
             tk.Label(
                 dlg,
-                text="No se detectaron partidas automáticas de Eden o NX2navi.\nPuedes usar el botón de abajo para elegir cualquier carpeta manualmente.",
+                text="No se detectaron partidas automáticas de Fritchii, Lichii, Eden o NX2navi.\nPuedes usar los botones de abajo para importar o exportar a cualquier carpeta manualmente.",
                 bg=BG_CARD,
                 fg=FG_TEXT,
                 padx=14,
@@ -2343,8 +2345,25 @@ class HookshotLauncherApp(tk.Tk):
             self.status_var.set("✔ Partida importada desde carpeta externa.")
             dlg.destroy()
 
-        self._make_flat_button(dlg, "📂 Importar desde otra carpeta...", _import_custom_folder).pack(
-            padx=16, pady=(4, 14), fill="x"
+        def _export_custom_folder():
+            folder = filedialog.askdirectory(title="Seleccionar carpeta de destino para exportar partidas", parent=dlg)
+            if not folder:
+                return
+            cur = self.profiles_meta.get("active", "Principal")
+            self.sync_active_save_to_current_profile()
+            prof_dir = os.path.join(self.profiles_dir, cur)
+            copy_save_contents(prof_dir, folder, keep_option_sav=True)
+            self.status_var.set("✔ Partida exportada hacia carpeta externa.")
+            messagebox.showinfo("Exportación lista", f"Partida exportada a:\n{folder}", parent=dlg)
+            dlg.destroy()
+
+        custom_row = tk.Frame(dlg, bg=BG_PANEL)
+        custom_row.pack(padx=16, pady=(4, 14), fill="x")
+        self._make_flat_button(custom_row, "📂 Importar desde otra carpeta...", _import_custom_folder).pack(
+            side="left", padx=(0, 4), expand=True, fill="x"
+        )
+        self._make_flat_button(custom_row, "📂 Exportar hacia otra carpeta...", _export_custom_folder).pack(
+            side="left", padx=(4, 0), expand=True, fill="x"
         )
 
     # -----------------------------------------------------------------------

@@ -68,6 +68,7 @@ jobs:
             - Nuevas opciones gráficas: **Filtro Anisotrópico (`anisotropic_filtering` hasta 16x)**, **Mesh Shaders (`mesh_shaders`)**, **Menús en Ultrawide (`ultrawide_menus`)**, **AMD FSR 3.1 / FSR 4** y **AMD Anti-Lag 2**.
             - Nuevas opciones de audio y jugabilidad: **Volumen General (`volume`)**, **Silenciar en segundo plano (`mute_in_background`)**, **Tamaño de Texto (`text_size`)**, **Tamaño del Menú F1 (`menu_size`)** y **Atajo del Menú (`menu_shortcut`)**.
             - Nuevas opciones de control: **Vibración compatible Bluetooth (`HOS_HD_RUMBLE=0`)** para evitar vibración pegada en mandos Pro alternativos manteniendo el Giroscopio, y **Desactivar centrado automático de cámara (`disable_camera_centering`)**.
+          - **Sincronización con Fritchii v5.8+ y Lichii:** Autodetección de las nuevas rutas de partidas en `%APPDATA%\fritchii\nand\user\save` y `%APPDATA%\lichii\nand\user\save` (para importar y exportar) conservando compatibilidad con Eden y NX2navi, además de exportación manual a cualquier carpeta.
 
           ### 📦 Archivos de Descarga
           - **`HookshotLauncher-Setup.exe`**: Instalador automático (instala el Launcher y crea los accesos directos en Escritorio y Menú Inicio con el icono oficial).
@@ -76,6 +77,7 @@ jobs:
           "@
           gh release view $tag > $null 2>&1
           if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --notes $notes
             gh release upload $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --clobber
           } else {
             gh release create $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --title "Hookshot Launcher & Profile Manager v1.2.0" --notes $notes
