@@ -62,22 +62,26 @@ if os.name == "nt":
 
 
 # ---------------------------------------------------------------------------
-# Color Palette (Sheikah / Triforce Dark Theme)
+# Color Palette (Hookshot v2.1.0 Sheikah / Ocarina of Time UI Theme)
+# Authentic tokens derived directly from Hookshot gpu/vk/vk_ui.h
 # ---------------------------------------------------------------------------
-BG_MAIN = "#0d1117"
-BG_PANEL = "#161b22"
-BG_CARD = "#1f2630"
-BG_INPUT = "#21262d"
-FG_TEXT = "#e6edf3"
-FG_MUTED = "#8b949e"
-ACCENT_GOLD = "#d4af37"
-ACCENT_GOLD_HOVER = "#e5c158"
-ACCENT_BLUE = "#58a6ff"
-ACCENT_GREEN = "#238636"
-ACCENT_GREEN_HOVER = "#2ea043"
-ACCENT_RED = "#da3633"
-ACCENT_RED_HOVER = "#f85149"
-BORDER_COLOR = "#30363d"
+BG_MAIN = "#16110b"         # kBar: Deepest obsidian background
+BG_PANEL = "#221a11"        # kColumn: Warm dark stone panel
+BG_CARD = "#241c13"         # kBox: Cards and containers
+BG_INPUT = "#1e1913"        # kCellDark: Inputs, comboboxes, preview frames
+FG_TEXT = "#f0e8d6"         # kInk: Warm parchment text
+FG_MUTED = "#a89c88"        # kDim: Secondary muted bronze/stone text
+ACCENT_GOLD = "#de9828"     # kGold: Triforce gold
+ACCENT_GOLD_HOVER = "#eea834"# kGoldHi: Bright gold glow / active
+ACCENT_GOLD_INK = "#241808" # kGoldInk: Deep dark text on gold elements
+ACCENT_BLUE = "#58a6ff"     # Navi / Zora sapphire accent
+ACCENT_GREEN = "#2e8540"    # Kokiri emerald green
+ACCENT_GREEN_HOVER = "#389e4e"
+ACCENT_RED = "#c53030"      # Goron ruby red
+ACCENT_RED_HOVER = "#dc3545"
+BORDER_COLOR = "#7a6240"    # kEdge / kBoxEdge: Ancient bronze/gold border
+BORDER_SUBTLE = "#463018"   # kBannerEdge: Subtle inner divider
+BANNER_BG = "#2e2214"       # Warm update banner background
 
 
 # ---------------------------------------------------------------------------
@@ -831,8 +835,8 @@ class HookshotLauncherApp(tk.Tk):
         )
         style.map(
             "TNotebook.Tab",
-            background=[("selected", ACCENT_GOLD), ("active", "#2d3542")],
-            foreground=[("selected", "#0d1117"), ("active", FG_TEXT)],
+            background=[("selected", ACCENT_GOLD), ("active", "#3c2f20")],
+            foreground=[("selected", ACCENT_GOLD_INK), ("active", FG_TEXT)],
         )
 
         style.configure(
@@ -856,7 +860,7 @@ class HookshotLauncherApp(tk.Tk):
         self.option_add("*TCombobox*Listbox.background", BG_INPUT)
         self.option_add("*TCombobox*Listbox.foreground", FG_TEXT)
         self.option_add("*TCombobox*Listbox.selectBackground", ACCENT_GOLD)
-        self.option_add("*TCombobox*Listbox.selectForeground", "#0d1117")
+        self.option_add("*TCombobox*Listbox.selectForeground", ACCENT_GOLD_INK)
         self.option_add("*TCombobox*Listbox.font", ("Segoe UI", 10))
 
         style.configure(
@@ -1307,9 +1311,9 @@ class HookshotLauncherApp(tk.Tk):
             text="⚙ Opciones",
             command=self._open_settings_dialog,
             bg=ACCENT_GOLD,
-            fg="#0d1117",
+            fg=ACCENT_GOLD_INK,
             activebackground=ACCENT_GOLD_HOVER,
-            activeforeground="#0d1117",
+            activeforeground=ACCENT_GOLD_INK,
             relief="flat",
             font=("Segoe UI", 9, "bold"),
             padx=10,
@@ -1325,12 +1329,12 @@ class HookshotLauncherApp(tk.Tk):
 
     def _build_update_banner(self):
         """Hidden banner that appears when a new Hookshot update is available or when Hookshot is not installed."""
-        self.banner_frame = tk.Frame(self, bg="#1c2d42", highlightthickness=1, highlightbackground=ACCENT_BLUE)
+        self.banner_frame = tk.Frame(self, bg=BANNER_BG, highlightthickness=1, highlightbackground=ACCENT_GOLD)
         self.banner_label_var = tk.StringVar(value="")
         tk.Label(
             self.banner_frame,
             textvariable=self.banner_label_var,
-            bg="#1c2d42",
+            bg=BANNER_BG,
             fg=FG_TEXT,
             font=("Segoe UI", 9, "bold"),
         ).pack(side="left", padx=12, pady=8)
@@ -1372,9 +1376,9 @@ class HookshotLauncherApp(tk.Tk):
             text="⬇ Actualizar",
             command=self._trigger_update_or_install,
             bg=ACCENT_GOLD,
-            fg="#0d1117",
+            fg=ACCENT_GOLD_INK,
             activebackground=ACCENT_GOLD_HOVER,
-            activeforeground="#0d1117",
+            activeforeground=ACCENT_GOLD_INK,
             relief="flat",
             font=("Segoe UI", 9, "bold"),
             padx=10,
@@ -1490,7 +1494,7 @@ class HookshotLauncherApp(tk.Tk):
 
         # Screenshot Container (480 x 270, 16:9 ratio matching 543x306)
         self.preview_card = tk.Frame(
-            parent, bg="#090c10", width=484, height=272, highlightthickness=1, highlightbackground=BORDER_COLOR
+            parent, bg=BG_INPUT, width=484, height=272, highlightthickness=1, highlightbackground=BORDER_COLOR
         )
         self.preview_card.pack(padx=18, pady=8)
         self.preview_card.pack_propagate(False)
@@ -1498,7 +1502,7 @@ class HookshotLauncherApp(tk.Tk):
         self.preview_img_label = tk.Label(
             self.preview_card,
             text="Sin capturas en este perfil\n(Inicia el juego para crear una partida)",
-            bg="#090c10",
+            bg=BG_INPUT,
             fg=FG_MUTED,
             font=("Segoe UI", 10),
             justify="center",
@@ -2586,9 +2590,9 @@ class HookshotLauncherApp(tk.Tk):
             self.play_btn.configure(
                 text="⬇  INSTALAR HOOKSHOT",
                 bg=ACCENT_GOLD,
-                fg="#0d1117",
+                fg=ACCENT_GOLD_INK,
                 activebackground=ACCENT_GOLD_HOVER,
-                activeforeground="#0d1117",
+                activeforeground=ACCENT_GOLD_INK,
             )
             return
 
