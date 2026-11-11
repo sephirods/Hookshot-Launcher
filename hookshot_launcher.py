@@ -37,7 +37,7 @@ try:
 except ImportError:
     HAS_PIL = False
 
-LAUNCHER_VERSION = "v1.1.0"
+LAUNCHER_VERSION = "v1.2.0"
 LAUNCHER_REPO = "sephirods/Hookshot-Launcher"
 HOOKSHOT_REPO = "NotRexed/Hookshot"
 HOOKSHOT_API_LATEST = f"https://api.github.com/repos/{HOOKSHOT_REPO}/releases/latest"
@@ -167,12 +167,27 @@ OUTPUT_RESOLUTIONS = [
     (1, "2560×1440 (Quad HD 1440p)"),
     (2, "3840×2160 (4K Ultra HD)"),
     (4, "5120×1440 (Super Ultrawide 32:9)"),
+    (5, "5120×2880 (5K Ultra HD)"),
 ]
+
+OUTPUT_RES_CODE_TO_STR = {
+    0: "2048x1152",
+    1: "2560x1440",
+    2: "3840x2160",
+    3: "1920x1080",
+    4: "5120x1440",
+    5: "5120x2880",
+}
+
+OUTPUT_RES_STR_TO_CODE = {v: k for k, v in OUTPUT_RES_CODE_TO_STR.items()}
 
 UPSCALERS = [
     (0, "Propio del Juego (Nativo)"),
     (1, "NVIDIA DLSS"),
     (2, "NVIDIA DLAA (Nativo + Suavizado IA)"),
+    (3, "AMD FSR 3.1"),
+    (4, "AMD FSR 4"),
+    (5, "AMD FSR 4 Native AA"),
 ]
 
 DLSS_MODELS = [
@@ -185,10 +200,13 @@ DLSS_MODELS = [
 RENDER_RESOLUTIONS = [
     (0, "Automática (Dinámica)"),
     (1, "100% (Tamaño completo)"),
-    (2, "75% (Escala fija)"),
+    (9, "92% (Escala 11/12)"),
+    (8, "83% (Escala 10/12)"),
+    (2, "75% (Escala 9/12)"),
     (3, "67% (DLSS / FSR Calidad)"),
     (5, "58% (DLSS / FSR Equilibrado)"),
     (4, "50% (DLSS / FSR Rendimiento)"),
+    (7, "42% (Escala 5/12)"),
     (6, "33% (DLSS / FSR Ultra Rendimiento)"),
 ]
 
@@ -196,6 +214,26 @@ SCALING_FILTERS = [
     (0, "Desactivado (Copia directa)"),
     (1, "Catmull-Rom (Nítido)"),
     (2, "Lanczos (Muy nítido)"),
+]
+
+ANISOTROPIC_MODES = [
+    (0, "Propio del Juego (1x / 2x)"),
+    (1, "2x"),
+    (2, "4x"),
+    (3, "8x"),
+    (4, "16x (Máxima nitidez - Recomendado)"),
+]
+
+MESH_SHADER_MODES = [
+    (0, "Automático (Mesh Shaders si la GPU soporta)"),
+    (1, "Nativo (Mesh Shaders de la GPU)"),
+    (2, "Compute (Modo compatible para todas las GPUs)"),
+]
+
+ULTRAWIDE_MENU_MODES = [
+    (0, "Ancho Completo (Estirados)"),
+    (1, "Centrados 16:9 (Bordes difuminados)"),
+    (2, "Centrados 16:9 (Barras negras)"),
 ]
 
 FPS_CAPS = [
@@ -268,6 +306,26 @@ TEXT_SPEEDS = [
     (3, "Instantáneo"),
 ]
 
+TEXT_SIZES = [
+    (0, "Original (100%)"),
+    (1, "110% (Un poco más grande)"),
+    (2, "125% (Grande)"),
+    (3, "150% (Muy grande)"),
+    (4, "175% (Máximo)"),
+]
+
+MENU_SIZES = [
+    (1, "Pequeño (Monitor de escritorio)"),
+    (2, "Mediano (Estándar)"),
+    (3, "Grande (Televisor / Sala)"),
+]
+
+MENU_SHORTCUTS = [
+    (0, "Insert o F1 (Por defecto)"),
+    (1, "Solo F1 (Deja Insert libre)"),
+    (2, "Insert, F1 o Esc (Como pausa de PC)"),
+]
+
 AUDIO_OUTPUTS = [
     (0, "Automático (Según dispositivo Windows)"),
     (1, "Estéreo (2.0)"),
@@ -326,25 +384,34 @@ DEFAULT_OPTIONS = {
     "hdr_peak_brightness": 1000,
     "frame_rate_cap": 0,
     "nvidia_reflex": 0,
+    "amd_anti_lag_2": 0,
     "output_res": 0,
     "dlss": 0,
     "dlss_model": 0,
     "resolution": 1,
     "upscaling": 0,
     "sharpness": 10,
+    "anisotropic_filtering": 4,
     "handheld_profile": 0,
     "ultrawide": 0,
+    "ultrawide_menus": 1,
     "robust_buffers": 0,
-    "descriptor_reuse": 0,
+    "mesh_shaders": 0,
+    "descriptor_reuse": 1,
     "sampler_cache": 0,
+    "volume": 100,
+    "mute_in_background": 0,
+    "audio_output": 0,
     "fps_counter": 0,
+    "menu_size": 2,
     "game_speed": 1,
     "text_speed": 0,
-    "audio_output": 0,
+    "text_size": 0,
     "microphone": 1,
     "discord_status": 1,
     "controller_in_background": 0,
     "mouse_camera": 0,
+    "disable_camera_centering": 0,
     "mouse_sensitivity": 100,
     "invert_mouse_vertical": 0,
     "invert_camera_x": 0,
@@ -359,21 +426,24 @@ DEFAULT_OPTIONS = {
     "motion_deadzone": 1,
     "layout_preset": 0,
     "button_prompts": 0,
+    "menu_shortcut": 0,
     "debug_tools": 0,
-    "options_version": 3,
+    "options_version": 4,
 }
 
 OPTION_KEYS_ORDER = [
     "quality_preset", "fullscreen", "gpu_device", "frame_generation", "frame_pacing",
     "hdr", "hdr_paper_white", "hdr_peak_brightness", "frame_rate_cap", "nvidia_reflex",
-    "output_res", "dlss", "dlss_model", "resolution", "upscaling", "sharpness",
-    "handheld_profile", "ultrawide", "robust_buffers", "descriptor_reuse", "sampler_cache",
-    "fps_counter", "game_speed", "text_speed", "audio_output", "microphone",
-    "discord_status", "controller_in_background", "mouse_camera", "mouse_sensitivity",
-    "invert_mouse_vertical", "invert_camera_x", "invert_camera_y", "stick_dead_zone",
-    "rumble_strength", "motion_controls", "motion_sensitivity_x", "motion_sensitivity_y",
-    "invert_motion_x", "invert_motion_y", "motion_deadzone", "layout_preset",
-    "button_prompts", "debug_tools",
+    "amd_anti_lag_2", "output_res", "dlss", "dlss_model", "resolution", "upscaling",
+    "sharpness", "anisotropic_filtering", "handheld_profile", "ultrawide", "ultrawide_menus",
+    "robust_buffers", "mesh_shaders", "volume", "mute_in_background", "audio_output",
+    "fps_counter", "menu_size", "game_speed", "text_speed", "text_size", "microphone",
+    "discord_status", "controller_in_background", "mouse_camera", "disable_camera_centering",
+    "mouse_sensitivity", "invert_mouse_vertical", "invert_camera_x", "invert_camera_y",
+    "stick_dead_zone", "rumble_strength", "motion_controls", "motion_sensitivity_x",
+    "motion_sensitivity_y", "invert_motion_x", "invert_motion_y", "motion_deadzone",
+    "layout_preset", "button_prompts", "menu_shortcut", "debug_tools",
+    "descriptor_reuse", "sampler_cache",
 ]
 
 LOCATION_NAMES_PRETTY = {
@@ -917,7 +987,9 @@ class HookshotLauncherApp(tk.Tk):
             if ver_mt and abs(ver_mt - self._last_ver_mtime) > 0.05:
                 self._last_ver_mtime = ver_mt
                 self._read_version_file()
-                self.subtitle_var.set(f"Ocarina of Time PC  •  Motor: {self.hookshot_version}")
+                self.subtitle_var.set(
+                    f"The Legend of Zelda: Ocarina of Time PC  •  Motor: {self.hookshot_version}  •  {self.game_dir}"
+                )
                 if self.latest_github_tag:
                     self._apply_update_check_result()
         except Exception:
@@ -946,6 +1018,8 @@ class HookshotLauncherApp(tk.Tk):
             self.profiles_meta["profiles"] = ["Principal"]
         if self.profiles_meta.get("active") not in self.profiles_meta["profiles"]:
             self.profiles_meta["active"] = self.profiles_meta["profiles"][0]
+        if "bt_rumble_compat" not in self.profiles_meta:
+            self.profiles_meta["bt_rumble_compat"] = 1
 
         active_name = self.profiles_meta["active"]
         active_profile_folder = os.path.join(self.profiles_dir, active_name)
@@ -994,11 +1068,14 @@ class HookshotLauncherApp(tk.Tk):
     def _load_options_and_language(self):
         self.options_data = dict(DEFAULT_OPTIONS)
         self.preserved_bind_lines = []
+        self.preserved_other_lines = []
         self.microphone_device_line = None
+        self.custom_output_res_str = None
 
         ini_file = os.path.join(self.game_dir, "hookshot_options.ini")
         if os.path.isfile(ini_file):
             try:
+                loaded_version = 0
                 with open(ini_file, "r", encoding="utf-8", errors="ignore") as f:
                     for raw_line in f:
                         line = raw_line.strip()
@@ -1014,11 +1091,39 @@ class HookshotLauncherApp(tk.Tk):
                             k, v = line.split("=", 1)
                             k = k.strip()
                             v = v.strip()
-                            if k in self.options_data:
+                            if k == "options_version":
                                 try:
-                                    self.options_data[k] = int(v)
+                                    loaded_version = int(v)
                                 except ValueError:
                                     pass
+                                continue
+                            if k == "output_res":
+                                v_norm = v.lower().replace("×", "x")
+                                if v_norm in OUTPUT_RES_STR_TO_CODE:
+                                    self.options_data["output_res"] = OUTPUT_RES_STR_TO_CODE[v_norm]
+                                    self.custom_output_res_str = None
+                                elif "x" in v_norm:
+                                    self.options_data["output_res"] = 0
+                                    self.custom_output_res_str = v_norm
+                                else:
+                                    try:
+                                        self.options_data["output_res"] = int(v)
+                                        self.custom_output_res_str = None
+                                    except ValueError:
+                                        pass
+                                continue
+                            if k in self.options_data:
+                                try:
+                                    iv = int(v)
+                                    if k == "menu_size" and iv == 0:
+                                        iv = 2
+                                    self.options_data[k] = iv
+                                except ValueError:
+                                    pass
+                            else:
+                                self.preserved_other_lines.append(line)
+                if loaded_version and loaded_version < 4:
+                    self.options_data["descriptor_reuse"] = 1
             except Exception:
                 pass
 
@@ -1036,34 +1141,59 @@ class HookshotLauncherApp(tk.Tk):
                 pass
 
     def save_options_and_language(self, show_toast=False):
-        """Write hookshot_options.ini (preserving pad_* and key_*) and language.txt."""
+        """Write hookshot_options.ini (preserving pad_*, key_*, and custom lines) and language.txt."""
         if self._settings_window_alive():
             self._collect_ui_to_options()
         os.makedirs(self.game_dir, exist_ok=True)
 
         ini_file = os.path.join(self.game_dir, "hookshot_options.ini")
         current_binds = []
+        current_others = []
+        known_keys = set(OPTION_KEYS_ORDER) | {"options_version", "microphone_device"}
         if os.path.isfile(ini_file):
             try:
                 with open(ini_file, "r", encoding="utf-8", errors="ignore") as f:
                     for raw_line in f:
                         s = raw_line.strip()
+                        if not s or s.startswith("#"):
+                            continue
                         if s.startswith("pad_") or s.startswith("key_"):
                             current_binds.append(s)
                         elif s.startswith("microphone_device=") and not self.microphone_device_line:
                             self.microphone_device_line = s
+                        elif "=" in s:
+                            k_name = s.split("=", 1)[0].strip()
+                            if k_name not in known_keys:
+                                current_others.append(s)
             except Exception:
                 pass
         binds_to_write = current_binds if current_binds else self.preserved_bind_lines
+        others_to_write = current_others if current_others else getattr(self, "preserved_other_lines", [])
+
+        # Check if installed Hookshot is v2.1.0+ (which accepts WxH or 0..5, while v2.0.14 only accepts 0..4)
+        is_v2_1_plus = False
+        try:
+            ver_clean = self.hookshot_version.lstrip("vV").split("-")[0]
+            parts = [int(x) for x in ver_clean.split(".")[:2]]
+            if len(parts) >= 2 and (parts[0] > 2 or (parts[0] == 2 and parts[1] >= 1)):
+                is_v2_1_plus = True
+        except Exception:
+            pass
 
         try:
             with open(ini_file, "w", encoding="utf-8", newline="\n") as f:
                 for k in OPTION_KEYS_ORDER:
                     val = self.options_data.get(k, DEFAULT_OPTIONS.get(k, 0))
-                    f.write(f"{k}={val}\n")
+                    if k == "output_res" and is_v2_1_plus:
+                        out_str = OUTPUT_RES_CODE_TO_STR.get(int(val), "2048x1152")
+                        f.write(f"output_res={out_str}\n")
+                    else:
+                        f.write(f"{k}={val}\n")
                 if self.microphone_device_line:
                     f.write(f"{self.microphone_device_line}\n")
-                f.write("options_version=3\n")
+                f.write("options_version=4\n")
+                for oline in others_to_write:
+                    f.write(f"{oline}\n")
                 for bline in binds_to_write:
                     f.write(f"{bline}\n")
         except Exception as e:
@@ -1436,8 +1566,8 @@ class HookshotLauncherApp(tk.Tk):
 
         win = tk.Toplevel(self)
         win.title("Configuración de Hookshot (Guardado Automático en Vivo)")
-        win.geometry("760x540")
-        win.minsize(720, 500)
+        win.geometry("780x590")
+        win.minsize(740, 540)
         win.configure(bg=BG_MAIN)
         win.transient(self)
         if self.icon_path and os.path.isfile(self.icon_path):
@@ -1519,6 +1649,7 @@ class HookshotLauncherApp(tk.Tk):
         self._add_combo_row(col_l, "dlss_model", "Modelo IA de DLSS:", DLSS_MODELS)
         self._add_combo_row(col_l, "resolution", "Resolución de Render 3D:", RENDER_RESOLUTIONS)
         self._add_combo_row(col_l, "upscaling", "Filtro Escalado Ventana:", SCALING_FILTERS)
+        self._add_combo_row(col_l, "anisotropic_filtering", "Filtro Anisotrópico:", ANISOTROPIC_MODES)
         self._add_slider_row(col_l, "sharpness", "Nitidez (Sharpness %):", 0, 100, 10)
 
         self._add_section_label(col_r, "Fluidez, Pantalla y Vulkan")
@@ -1526,14 +1657,17 @@ class HookshotLauncherApp(tk.Tk):
         self._add_combo_row(col_r, "frame_generation", "Frame Generation:", FRAME_GEN_MODES)
         self._add_combo_row(col_r, "nvidia_reflex", "NVIDIA Reflex:", REFLEX_MODES)
         self._add_combo_row(col_r, "hdr", "Modo HDR10:", HDR_MODES)
+        self._add_combo_row(col_r, "mesh_shaders", "Mesh Shaders (Geometría):", MESH_SHADER_MODES)
         self._add_combo_row(col_r, "robust_buffers", "Buffers Robustos (VRAM):", ROBUST_MODES)
+        self._add_combo_row(col_r, "ultrawide_menus", "Menús en Ultrawide:", ULTRAWIDE_MENU_MODES)
 
         toggles_frame = tk.Frame(col_r, bg=BG_PANEL)
-        toggles_frame.pack(fill="x", pady=(8, 0))
+        toggles_frame.pack(fill="x", pady=(6, 0))
         self._add_check_row(toggles_frame, "fullscreen", "Pantalla Completa sin bordes (F11)")
-        self._add_check_row(toggles_frame, "ultrawide", "Cámara Ultrawide (Adaptar a monitor 21:9 / 32:9)")
+        self._add_check_row(toggles_frame, "ultrawide", "Cámara Ultrawide (Adaptar a monitor 21:9 / 32:9 / 4:3)")
         self._add_check_row(toggles_frame, "frame_pacing", "Frame Pacing uniforme (Menos micro-stutter)")
         self._add_check_row(toggles_frame, "handheld_profile", "Perfil Portátil (1536×864, más ligero para GPU)")
+        self._add_check_row(toggles_frame, "amd_anti_lag_2", "Activar AMD Anti-Lag 2 (En GPUs AMD compatibles)")
         self._add_check_row(toggles_frame, "descriptor_reuse", "Reutilizar Descriptores Vulkan (Streaming rápido)")
         self._add_check_row(toggles_frame, "sampler_cache", "Caché de Samplers sin bloqueo")
 
@@ -1551,33 +1685,38 @@ class HookshotLauncherApp(tk.Tk):
         self._add_combo_row(col_l, "_language", "Idioma del Juego (language.txt):", LANGUAGES)
         self._add_combo_row(col_l, "game_speed", "Velocidad del Juego:", GAME_SPEEDS)
         self._add_combo_row(col_l, "text_speed", "Velocidad de Diálogos:", TEXT_SPEEDS)
+        self._add_combo_row(col_l, "text_size", "Tamaño de Texto / Diálogos:", TEXT_SIZES)
 
         self._add_section_label(col_l, "Audio y Micrófono (Ocarina)")
+        self._add_slider_row(col_l, "volume", "Volumen General del Juego (%):", 0, 100, 5)
         self._add_combo_row(col_l, "audio_output", "Canales de Salida Audio:", AUDIO_OUTPUTS)
         self._add_combo_row(col_l, "microphone", "Micrófono para Ocarina:", MIC_MODES)
+        self._add_check_row(col_l, "mute_in_background", "Silenciar el audio cuando la ventana esté en segundo plano")
 
         self._add_section_label(col_r, "Superposición, HDR Avanzado y Utilidades")
+        self._add_combo_row(col_r, "menu_size", "Tamaño del Menú F1 y FPS:", MENU_SIZES)
+        self._add_combo_row(col_r, "menu_shortcut", "Atajo para abrir el Menú:", MENU_SHORTCUTS)
         self._add_slider_row(col_r, "hdr_paper_white", "HDR Brillo Blanco (Nits):", 80, 400, 10)
         self._add_slider_row(col_r, "hdr_peak_brightness", "HDR Brillo Pico (Nits):", 400, 4000, 100)
 
         sys_toggles = tk.Frame(col_r, bg=BG_PANEL)
-        sys_toggles.pack(fill="x", pady=(10, 0))
+        sys_toggles.pack(fill="x", pady=(8, 0))
         self._add_check_row(sys_toggles, "fps_counter", "Mostrar Contador de FPS en esquina superior derecha")
         self._add_check_row(sys_toggles, "discord_status", "Mostrar actividad en Discord (Rich Presence)")
         self._add_check_row(
             sys_toggles,
             "debug_tools",
-            "Activar pestaña Debug / Cheats en menú Insert (Vuelo, Teletransporte, Inventario)",
+            "Activar pestaña Debug / Cheats en menú F1 (Vuelo, Teletransporte, Inventario)",
         )
 
         info_card = tk.Frame(col_r, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER_COLOR)
-        info_card.pack(fill="x", pady=(16, 0))
+        info_card.pack(fill="x", pady=(12, 0))
         tk.Label(
             info_card,
             text="💡 Atajos dentro del juego:\n"
-            "• Tecla Insert / F1 (o Select + Start en mando): Abre el menú interno de Hookshot.\n"
-            "• Tecla F11: Alterna entre Ventana y Pantalla Completa.\n"
-            "• Teclas - y = : Ajustan la sensibilidad del ratón en directo.",
+            "• Tecla F1 / Insert (o Home / Select+Start en mando): Abre el menú interno.\n"
+            "• Ratón en Menús: En v2.1.0 puedes usar clic del ratón en menús de Zelda y F1.\n"
+            "• Tecla F11: Alterna entre Ventana y Pantalla Completa.",
             bg=BG_CARD,
             fg=FG_MUTED,
             font=("Segoe UI", 9),
@@ -1609,8 +1748,10 @@ class HookshotLauncherApp(tk.Tk):
         self._add_slider_row(col_r, "motion_sensitivity_y", "Sensibilidad Giroscopio Y (%):", 10, 300, 10)
 
         ctrl_toggles = tk.Frame(col_r, bg=BG_PANEL)
-        ctrl_toggles.pack(fill="x", pady=(8, 0))
+        ctrl_toggles.pack(fill="x", pady=(6, 0))
         self._add_check_row(ctrl_toggles, "motion_controls", "Activar Apuntado por Giroscopio (Switch Pro / DualSense / DS4)")
+        self._add_check_row(ctrl_toggles, "_bt_rumble_compat", "Vibración compatible Bluetooth (Evita vibración pegada)")
+        self._add_check_row(ctrl_toggles, "disable_camera_centering", "Desactivar centrado automático de cámara al caminar")
         self._add_check_row(ctrl_toggles, "controller_in_background", "Permitir uso del mando con la ventana en segundo plano")
         self._add_check_row(ctrl_toggles, "invert_mouse_vertical", "Invertir eje vertical del ratón")
         self._add_check_row(ctrl_toggles, "invert_camera_x", "Invertir cámara horizontal (Stick derecho X)")
@@ -1755,6 +1896,8 @@ class HookshotLauncherApp(tk.Tk):
                 kind = item[0]
                 if key == "_language":
                     raw_val = self.current_language
+                elif key == "_bt_rumble_compat":
+                    raw_val = self.profiles_meta.get("bt_rumble_compat", 1)
                 else:
                     raw_val = self.options_data.get(key, DEFAULT_OPTIONS.get(key, 0))
 
@@ -1802,24 +1945,29 @@ class HookshotLauncherApp(tk.Tk):
                 self.options_data[key] = int(var.get())
             elif kind == "check":
                 _, var = item
-                self.options_data[key] = 1 if int(var.get()) != 0 else 0
+                val = 1 if int(var.get()) != 0 else 0
+                if key == "_bt_rumble_compat":
+                    self.profiles_meta["bt_rumble_compat"] = val
+                    self._save_profiles_meta()
+                else:
+                    self.options_data[key] = val
 
     def _on_preset_changed(self, _event=None):
-        """Apply Hookshot's exact preset rules from vk_menu.cpp apply_preset() and auto-save."""
+        """Apply Hookshot v2.1.0's exact preset rules from vk_menu.cpp apply_preset() and auto-save."""
         if self._suppress_autosave:
             return
         self._collect_ui_to_options()
         p = self.options_data.get("quality_preset", 0)
         if p == 1:  # Minimum (4GB)
-            self.options_data.update({"resolution": 4, "upscaling": 2, "sharpness": 30, "frame_generation": 2, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 1})
+            self.options_data.update({"resolution": 4, "upscaling": 2, "sharpness": 30, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 1})
         elif p == 2:  # Low (6GB)
-            self.options_data.update({"resolution": 2, "upscaling": 2, "sharpness": 30, "frame_generation": 2, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 1})
+            self.options_data.update({"resolution": 2, "upscaling": 2, "sharpness": 30, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 1})
         elif p == 3:  # Balanced (8GB)
-            self.options_data.update({"resolution": 1, "upscaling": 1, "sharpness": 30, "frame_generation": 2, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 0})
+            self.options_data.update({"resolution": 1, "upscaling": 1, "sharpness": 30, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 0})
         elif p == 4:  # High (12GB)
-            self.options_data.update({"resolution": 1, "upscaling": 2, "sharpness": 40, "frame_generation": 2, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 0})
+            self.options_data.update({"resolution": 1, "upscaling": 2, "sharpness": 40, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 0})
         elif p == 5:  # Ultra (16GB+)
-            self.options_data.update({"resolution": 1, "upscaling": 2, "sharpness": 50, "frame_generation": 3, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 0})
+            self.options_data.update({"resolution": 1, "upscaling": 2, "sharpness": 50, "frame_pacing": 1, "game_speed": 1, "handheld_profile": 0})
         self._populate_settings_ui()
         self.save_options_and_language(show_toast=True)
 
@@ -2501,6 +2649,10 @@ class HookshotLauncherApp(tk.Tk):
         exe_path = os.path.join(self.game_dir, "hookshot.exe")
         env = os.environ.copy()
         env["HOOKSHOT_NO_UPDATE_CHECK"] = "1"
+        if self.profiles_meta.get("bt_rumble_compat", 1):
+            env["HOS_HD_RUMBLE"] = "0"
+        else:
+            env.pop("HOS_HD_RUMBLE", None)
 
         self.status_var.set(f"🚀 Ejecutando Hookshot con el perfil '{active_prof}'...")
         self.update_idletasks()
