@@ -54,18 +54,20 @@ jobs:
           Copy-Item "assets/hookshot.ico" "portable_pkg/assets/hookshot.ico"
           Compress-Archive -Path "portable_pkg/*" -DestinationPath "HookshotLauncher-Portable.zip" -Force
 
-      - name: Create or Update GitHub Release v1.1.0
+      - name: Create or Update GitHub Release v1.2.0
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $tag = "v1.1.0"
+          $tag = "v1.2.0"
           $notes = @"
-          ## 🛡 Hookshot Launcher & Profile Manager v1.1.0
+          ## 🛡 Hookshot Launcher & Profile Manager v1.2.0 (Compatible con Hookshot v2.1.0)
 
-          ### ✨ Novedades en v1.1.0
-          - **Menú de Configuración Dedicado (`⚙ Opciones`):** Ventana principal enfocada limpiamente en los Perfiles de Guardado y capturas de partida, con las opciones gráficas, de audio y controles organizadas en un menú modal independiente.
-          - **Guardado Automático Instantáneo y Sincronización en Vivo:** Eliminado el botón manual de guardar; cualquier cambio se guarda al instante en `hookshot_options.ini` y `language.txt`, y si cambias opciones o guardas partida dentro del juego (`Insert` / `F1`), el Launcher se actualiza en vivo.
-          - **Detección del Juego en Tiempo Real (`▶ Jugar` ↔ `⏹ Detener`):** Detecta automáticamente si `hookshot.exe` está abierto y permite cerrarlo limpiamente desde el propio botón.
+          ### ✨ Novedades en v1.2.0
+          - **Soporte completo para Hookshot `v2.1.0` (`options_version=4`):**
+            - Lectura y escritura híbrida de `output_res` (`2048x1152` y códigos `0..5`) más nueva resolución **5K (`5120×2880`)**.
+            - Nuevas opciones gráficas: **Filtro Anisotrópico (`anisotropic_filtering` hasta 16x)**, **Mesh Shaders (`mesh_shaders`)**, **Menús en Ultrawide (`ultrawide_menus`)**, **AMD FSR 3.1 / FSR 4** y **AMD Anti-Lag 2**.
+            - Nuevas opciones de audio y jugabilidad: **Volumen General (`volume`)**, **Silenciar en segundo plano (`mute_in_background`)**, **Tamaño de Texto (`text_size`)**, **Tamaño del Menú F1 (`menu_size`)** y **Atajo del Menú (`menu_shortcut`)**.
+            - Nuevas opciones de control: **Vibración compatible Bluetooth (`HOS_HD_RUMBLE=0`)** para evitar vibración pegada en mandos Pro alternativos manteniendo el Giroscopio, y **Desactivar centrado automático de cámara (`disable_camera_centering`)**.
 
           ### 📦 Archivos de Descarga
           - **`HookshotLauncher-Setup.exe`**: Instalador automático (instala el Launcher y crea los accesos directos en Escritorio y Menú Inicio con el icono oficial).
@@ -76,5 +78,5 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --clobber
           } else {
-            gh release create $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --title "Hookshot Launcher & Profile Manager v1.1.0" --notes $notes
+            gh release create $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --title "Hookshot Launcher & Profile Manager v1.2.0" --notes $notes
           }
