@@ -37,12 +37,13 @@ try:
 except ImportError:
     HAS_PIL = False
 
-LAUNCHER_VERSION = "v1.2.0"
+LAUNCHER_VERSION = "v1.2.1"
 LAUNCHER_REPO = "sephirods/Hookshot-Launcher"
-HOOKSHOT_REPO = "NotRexed/Hookshot"
-HOOKSHOT_API_LATEST = f"https://api.github.com/repos/{HOOKSHOT_REPO}/releases/latest"
-HOOKSHOT_RELEASES_URL = f"https://github.com/{HOOKSHOT_REPO}/releases/latest"
-HOOKSHOT_BUILDER_DIRECT = f"https://github.com/{HOOKSHOT_REPO}/releases/latest/download/HookshotBuilder.exe"
+HOOKSHOT_BASE_URL = "https://git.notrexed.dev"
+HOOKSHOT_REPO = "Hookshot/Hookshot"
+HOOKSHOT_API_RELEASES = f"{HOOKSHOT_BASE_URL}/api/v1/repos/{HOOKSHOT_REPO}/releases"
+HOOKSHOT_RELEASES_URL = f"{HOOKSHOT_BASE_URL}/{HOOKSHOT_REPO}/releases"
+HOOKSHOT_BUILDER_DIRECT = f"{HOOKSHOT_BASE_URL}/{HOOKSHOT_REPO}/releases/download/v2.2.0-rc.1/HookshotBuilder.exe"
 DEFAULT_UID = "5a3c9e1f0b7d24680000000000000001"
 TITLE_ID = "0400486024DEC000"
 
@@ -2448,21 +2449,39 @@ class HookshotLauncherApp(tk.Tk):
     def _check_updates_background(self):
         try:
             req = urllib.request.Request(
-                HOOKSHOT_API_LATEST,
+                HOOKSHOT_API_RELEASES,
                 headers={
                     "User-Agent": "Hookshot-Launcher-Update-Check",
-                    "Accept": "application/vnd.github+json",
+                    "Accept": "application/json",
                 },
             )
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-                tag = data.get("tag_name", "").strip()
-                notes = data.get("body", "")
-                if tag:
-                    self.latest_github_tag = tag
-                    self.latest_release_notes = notes
-                    self.after(0, self._apply_update_check_result)
-                    return
+                # Gitea returns an array of releases
+                if isinstance(data, list) and data:
+                    item = data[0]
+                    tag = item.get("tag_name", "").strip()
+                    notes = item.get("body", "")
+                    builder_url = None
+                    for asset in item.get("assets", []):
+                        if asset.get("name") == "HookshotBuilder.exe":
+                            builder_url = asset.get("browser_download_url")
+                            break
+                    if tag:
+                        self.latest_github_tag = tag
+                        self.latest_release_notes = notes
+                        if builder_url:
+                            self.latest_builder_url = builder_url
+                        self.after(0, self._apply_update_check_result)
+                        return
+                elif isinstance(data, dict):
+                    tag = data.get("tag_name", "").strip()
+                    notes = data.get("body", "")
+                    if tag:
+                        self.latest_github_tag = tag
+                        self.latest_release_notes = notes
+                        self.after(0, self._apply_update_check_result)
+                        return
         except Exception:
             pass
         self.after(0, lambda: self.version_badge_var.set(f"Motor: {self.hookshot_version}"))
@@ -2557,8 +2576,9 @@ class HookshotLauncherApp(tk.Tk):
                 os.makedirs(dest_dir, exist_ok=True)
                 dest_exe = os.path.join(dest_dir, "HookshotBuilder-Setup.exe")
 
+                download_target = getattr(self, "latest_builder_url", None) or HOOKSHOT_BUILDER_DIRECT
                 req = urllib.request.Request(
-                    HOOKSHOT_BUILDER_DIRECT,
+                    download_target,
                     headers={"User-Agent": "Hookshot-Launcher"},
                 )
                 with urllib.request.urlopen(req, timeout=30) as resp:
