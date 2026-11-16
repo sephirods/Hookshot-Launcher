@@ -37,7 +37,7 @@ try:
 except ImportError:
     HAS_PIL = False
 
-LAUNCHER_VERSION = "v1.2.2"
+LAUNCHER_VERSION = "v1.3.0"
 LAUNCHER_REPO = "sephirods/Hookshot-Launcher"
 HOOKSHOT_BASE_URL = "https://git.notrexed.dev"
 HOOKSHOT_REPO = "Hookshot/Hookshot"
@@ -193,6 +193,7 @@ UPSCALERS = [
     (3, "AMD FSR 3.1"),
     (4, "AMD FSR 4"),
     (5, "AMD FSR 4 Native AA"),
+    (6, "Desactivado (Sin escalador, 3D Nativo)"),
 ]
 
 DLSS_MODELS = [
@@ -272,6 +273,24 @@ HDR_MODES = [
     (0, "Desactivado (SDR)"),
     (1, "Expandido (SDR a HDR10)"),
     (2, "Nativo del Juego (HDR10 Real)"),
+]
+
+HDR_TONEMAP_MODES = [
+    (0, "Vanilla (Curva Original del Juego)"),
+    (1, "PsychoV35 (RenoDX HDR Nativo - Recomendado)"),
+]
+
+VSYNC_MODES = [
+    (0, "Desactivado (Off - Menor latencia)"),
+    (1, "Activado (On - Sin desgarro)"),
+    (2, "Adaptativo / Fast"),
+]
+
+FPS_CORNER_MODES = [
+    (0, "Superior Derecha (Top Right)"),
+    (1, "Superior Izquierda (Top Left)"),
+    (2, "Inferior Derecha (Bottom Right)"),
+    (3, "Inferior Izquierda (Bottom Left)"),
 ]
 
 ROBUST_MODES = [
@@ -387,7 +406,10 @@ DEFAULT_OPTIONS = {
     "hdr": 0,
     "hdr_paper_white": 200,
     "hdr_peak_brightness": 1000,
+    "hdr_contrast": 100,
+    "hdr_tonemap": 0,
     "frame_rate_cap": 0,
+    "vsync": 0,
     "nvidia_reflex": 0,
     "amd_anti_lag_2": 0,
     "output_res": 0,
@@ -408,15 +430,19 @@ DEFAULT_OPTIONS = {
     "mute_in_background": 0,
     "audio_output": 0,
     "fps_counter": 0,
+    "fps_corner": 0,
     "menu_size": 2,
     "game_speed": 1,
+    "fov": 100,
     "text_speed": 0,
     "text_size": 0,
     "microphone": 1,
     "discord_status": 1,
+    "skip_opening": 0,
     "controller_in_background": 0,
     "mouse_camera": 0,
     "disable_camera_centering": 0,
+    "camera_speed": 100,
     "mouse_sensitivity": 100,
     "invert_mouse_vertical": 0,
     "invert_camera_x": 0,
@@ -438,13 +464,14 @@ DEFAULT_OPTIONS = {
 
 OPTION_KEYS_ORDER = [
     "quality_preset", "fullscreen", "gpu_device", "frame_generation", "frame_pacing",
-    "hdr", "hdr_paper_white", "hdr_peak_brightness", "frame_rate_cap", "nvidia_reflex",
+    "hdr", "hdr_paper_white", "hdr_peak_brightness", "hdr_contrast", "hdr_tonemap",
+    "frame_rate_cap", "vsync", "nvidia_reflex",
     "amd_anti_lag_2", "output_res", "dlss", "dlss_model", "resolution", "upscaling",
     "sharpness", "anisotropic_filtering", "handheld_profile", "ultrawide", "ultrawide_menus",
     "robust_buffers", "mesh_shaders", "volume", "mute_in_background", "audio_output",
-    "fps_counter", "menu_size", "game_speed", "text_speed", "text_size", "microphone",
-    "discord_status", "controller_in_background", "mouse_camera", "disable_camera_centering",
-    "mouse_sensitivity", "invert_mouse_vertical", "invert_camera_x", "invert_camera_y",
+    "fps_counter", "fps_corner", "menu_size", "game_speed", "fov", "text_speed", "text_size", "microphone",
+    "discord_status", "skip_opening", "controller_in_background", "mouse_camera", "disable_camera_centering",
+    "camera_speed", "mouse_sensitivity", "invert_mouse_vertical", "invert_camera_x", "invert_camera_y",
     "stick_dead_zone", "rumble_strength", "motion_controls", "motion_sensitivity_x",
     "motion_sensitivity_y", "invert_motion_x", "invert_motion_y", "motion_deadzone",
     "layout_preset", "button_prompts", "menu_shortcut", "debug_tools",
@@ -1676,12 +1703,15 @@ class HookshotLauncherApp(tk.Tk):
         self._add_combo_row(col_l, "upscaling", "Filtro Escalado Ventana:", SCALING_FILTERS)
         self._add_combo_row(col_l, "anisotropic_filtering", "Filtro Anisotrópico:", ANISOTROPIC_MODES)
         self._add_slider_row(col_l, "sharpness", "Nitidez (Sharpness %):", 0, 100, 10)
+        self._add_slider_row(col_l, "fov", "Campo de Visión (FOV %):", 50, 150, 5)
 
         self._add_section_label(col_r, "Fluidez, Pantalla y Vulkan")
         self._add_combo_row(col_r, "frame_rate_cap", "Límite de Cuadros (FPS):", FPS_CAPS)
+        self._add_combo_row(col_r, "vsync", "Sincronización Vertical (V-Sync):", VSYNC_MODES)
         self._add_combo_row(col_r, "frame_generation", "Frame Generation:", FRAME_GEN_MODES)
         self._add_combo_row(col_r, "nvidia_reflex", "NVIDIA Reflex:", REFLEX_MODES)
         self._add_combo_row(col_r, "hdr", "Modo HDR10:", HDR_MODES)
+        self._add_combo_row(col_r, "hdr_tonemap", "Tone Mapper HDR:", HDR_TONEMAP_MODES)
         self._add_combo_row(col_r, "mesh_shaders", "Mesh Shaders (Geometría):", MESH_SHADER_MODES)
         self._add_combo_row(col_r, "robust_buffers", "Buffers Robustos (VRAM):", ROBUST_MODES)
         self._add_combo_row(col_r, "ultrawide_menus", "Menús en Ultrawide:", ULTRAWIDE_MENU_MODES)
@@ -1720,13 +1750,16 @@ class HookshotLauncherApp(tk.Tk):
 
         self._add_section_label(col_r, "Superposición, HDR Avanzado y Utilidades")
         self._add_combo_row(col_r, "menu_size", "Tamaño del Menú F1 y FPS:", MENU_SIZES)
+        self._add_combo_row(col_r, "fps_corner", "Posición Contador de FPS:", FPS_CORNER_MODES)
         self._add_combo_row(col_r, "menu_shortcut", "Atajo para abrir el Menú:", MENU_SHORTCUTS)
         self._add_slider_row(col_r, "hdr_paper_white", "HDR Brillo Blanco (Nits):", 80, 400, 10)
         self._add_slider_row(col_r, "hdr_peak_brightness", "HDR Brillo Pico (Nits):", 400, 4000, 100)
+        self._add_slider_row(col_r, "hdr_contrast", "Contraste HDR (%):", 50, 200, 5)
 
         sys_toggles = tk.Frame(col_r, bg=BG_PANEL)
         sys_toggles.pack(fill="x", pady=(8, 0))
-        self._add_check_row(sys_toggles, "fps_counter", "Mostrar Contador de FPS en esquina superior derecha")
+        self._add_check_row(sys_toggles, "fps_counter", "Mostrar Contador de FPS")
+        self._add_check_row(sys_toggles, "skip_opening", "Omitir cinemática de inicio al abrir el juego")
         self._add_check_row(sys_toggles, "discord_status", "Mostrar actividad en Discord (Rich Presence)")
         self._add_check_row(
             sys_toggles,
@@ -1765,6 +1798,7 @@ class HookshotLauncherApp(tk.Tk):
         self._add_combo_row(col_l, "stick_dead_zone", "Zona Muerta de Sticks:", DEADZONE_MODES)
         self._add_slider_row(col_l, "rumble_strength", "Fuerza de Vibración (%):", 0, 150, 25)
         self._add_combo_row(col_l, "mouse_camera", "Modo Cámara Ratón:", MOUSE_CAM_MODES)
+        self._add_slider_row(col_l, "camera_speed", "Velocidad de Giro de Cámara (%):", 50, 400, 25)
         self._add_slider_row(col_l, "mouse_sensitivity", "Sensibilidad Ratón (%):", 10, 500, 10)
 
         self._add_section_label(col_r, "Control por Movimiento (Giroscopio) e Inversión")

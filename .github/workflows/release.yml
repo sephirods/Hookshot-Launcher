@@ -54,22 +54,28 @@ jobs:
           Copy-Item "assets/hookshot.ico" "portable_pkg/assets/hookshot.ico"
           Compress-Archive -Path "portable_pkg/*" -DestinationPath "HookshotLauncher-Portable.zip" -Force
 
-      - name: Create or Update GitHub Release v1.2.2
+      - name: Create or Update GitHub Release v1.3.0
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $tag = "v1.2.2"
+          $tag = "v1.3.0"
           $notes = @"
-          ## 🛡 Hookshot Launcher & Profile Manager v1.2.2
+          ## 🛡 Hookshot Launcher & Profile Manager v1.3.0
 
-          ### ✨ Novedades en v1.2.2
-          - **Soporte completo para la nueva estructura `bin/hookshot.exe` de Hookshot `v2.2.0+` y `v2.3.x`:**
-            - Detección automática tanto en la nueva subcarpeta de binarios (`bin\hookshot.exe`) como en la ruta raíz legacy (`hookshot.exe`).
-            - Resuelve el aviso de falso positivo "No se encontró hookshot.exe en esta carpeta" tras actualizar el motor con HookshotBuilder.
-          - **Compatibilidad con Hookshot `v2.3.2` estable:**
-            - Totalmente adaptado para las nuevas mejoras del motor (Intel XeSS, filtros CRT, menor consumo de VRAM y backups de partidas fuera de la carpeta).
-          - **Infraestructura oficial en `git.notrexed.dev`:**
-            - Conexión continua con la API oficial de Gitea/Forgejo para actualizaciones de 1 clic.
+          ### ✨ Novedades en v1.3.0 (Gran actualización de opciones gráficas y motor)
+          - **Nuevas opciones gráficas avanzadas en `⚙ Opciones → 🖥 Gráficos y VRAM`:**
+            - **Campo de Visión (`fov`):** Slider ajustable de 50% a 150% (100% original).
+            - **Sincronización Vertical (`vsync`):** Desactivado (Off), Activado (On) y Adaptativo / Fast.
+            - **Tone Mapper HDR (`hdr_tonemap`):** Soporte para **PsychoV35 (RenoDX HDR)** o Vanilla original.
+            - **Contraste HDR (`hdr_contrast`):** Control deslizante de 50% a 200%.
+            - **Modo Nativo Puro:** Opción "Desactivado (Sin escalador, 3D Nativo)" en el selector de upscalers.
+          - **Nuevas opciones de sistema y cámara:**
+            - **Omitir cinemática de apertura (`skip_opening`):** Acceso directo al menú sin esperar la intro.
+            - **Posición del Contador de FPS (`fps_corner`):** Selector de 4 esquinas de pantalla.
+            - **Velocidad de Giro de Cámara (`camera_speed`):** Slider de 50% a 400%.
+          - **Soporte completo para Hookshot `v2.2.0+` y `v2.3.2`:**
+            - Detección automática del ejecutable en `bin\hookshot.exe` o en la raíz.
+            - Sincronización continua de actualizaciones oficiales desde `git.notrexed.dev`.
 
           ### 📦 Archivos de Descarga
           - **`HookshotLauncher-Setup.exe`**: Instalador automático (instala el Launcher y crea los accesos directos en Escritorio y Menú Inicio con el icono oficial).
@@ -81,5 +87,5 @@ jobs:
             gh release edit $tag --notes $notes
             gh release upload $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --clobber
           } else {
-            gh release create $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --title "Hookshot Launcher & Profile Manager v1.2.2" --notes $notes
+            gh release create $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --title "Hookshot Launcher & Profile Manager v1.3.0" --notes $notes
           }
