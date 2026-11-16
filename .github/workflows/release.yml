@@ -54,28 +54,27 @@ jobs:
           Copy-Item "assets/hookshot.ico" "portable_pkg/assets/hookshot.ico"
           Compress-Archive -Path "portable_pkg/*" -DestinationPath "HookshotLauncher-Portable.zip" -Force
 
-      - name: Create or Update GitHub Release v1.3.0
+      - name: Create or Update GitHub Release v1.3.1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $tag = "v1.3.0"
+          $tag = "v1.3.1"
           $notes = @"
-          ## 🛡 Hookshot Launcher & Profile Manager v1.3.0
+          ## 🛡 Hookshot Launcher & Profile Manager v1.3.1
 
-          ### ✨ Novedades en v1.3.0 (Gran actualización de opciones gráficas y motor)
-          - **Nuevas opciones gráficas avanzadas en `⚙ Opciones → 🖥 Gráficos y VRAM`:**
-            - **Campo de Visión (`fov`):** Slider ajustable de 50% a 150% (100% original).
-            - **Sincronización Vertical (`vsync`):** Desactivado (Off), Activado (On) y Adaptativo / Fast.
-            - **Tone Mapper HDR (`hdr_tonemap`):** Soporte para **PsychoV35 (RenoDX HDR)** o Vanilla original.
-            - **Contraste HDR (`hdr_contrast`):** Control deslizante de 50% a 200%.
-            - **Modo Nativo Puro:** Opción "Desactivado (Sin escalador, 3D Nativo)" en el selector de upscalers.
-          - **Nuevas opciones de sistema y cámara:**
-            - **Omitir cinemática de apertura (`skip_opening`):** Acceso directo al menú sin esperar la intro.
-            - **Posición del Contador de FPS (`fps_corner`):** Selector de 4 esquinas de pantalla.
-            - **Velocidad de Giro de Cámara (`camera_speed`):** Slider de 50% a 400%.
-          - **Soporte completo para Hookshot `v2.2.0+` y `v2.3.2`:**
-            - Detección automática del ejecutable en `bin\hookshot.exe` o en la raíz.
-            - Sincronización continua de actualizaciones oficiales desde `git.notrexed.dev`.
+          ### ✨ Novedades en v1.3.1 (Integración de Intel XeSS y Filtros CRT)
+          - **Nuevas opciones en `⚙ Opciones → 🖥 Gráficos y VRAM`:**
+            - **Intel XeSS y XeSS Native AA (`dlss`):** Incorporadas las opciones de super resolución por IA y suavizado nativo de Intel en el selector de escaladores 3D.
+            - **Filtros Retro CRT (`crt_filter`):** Desactivado, Lottes Aperture Grille (Monitor CRT), Lottes Consumer TV (TV de Tubo), Hyllian Fast y zfast CRT.
+            - **Líneas de Escaneo CRT (`crt_lines`):** Selección de raster virtual para simulación de scanlines (240p retro clásica, 480p fina o 720p densa).
+            - **Ventana de Configuración ampliada:** Mayor espacio y adaptabilidad visual para todos los controles gráficos.
+          - **Todo lo introducido en v1.3.0:**
+            - Slider de Campo de Visión (`fov`: 50% - 150%).
+            - Sincronización Vertical (`vsync`: Off, On, Fast/Adaptive).
+            - Tone Mapper HDR (`hdr_tonemap`: Vanilla vs PsychoV35 RenoDX) y Contraste HDR (`hdr_contrast`).
+            - Omitir cinemática de inicio (`skip_opening`) y posición del contador de FPS (`fps_corner`).
+            - Velocidad de giro de cámara (`camera_speed`: 50% - 400%).
+            - Soporte para ejecutables tanto en `bin\hookshot.exe` como en la raíz.
 
           ### 📦 Archivos de Descarga
           - **`HookshotLauncher-Setup.exe`**: Instalador automático (instala el Launcher y crea los accesos directos en Escritorio y Menú Inicio con el icono oficial).
@@ -87,5 +86,5 @@ jobs:
             gh release edit $tag --notes $notes
             gh release upload $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --clobber
           } else {
-            gh release create $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --title "Hookshot Launcher & Profile Manager v1.3.0" --notes $notes
+            gh release create $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --title "Hookshot Launcher & Profile Manager v1.3.1" --notes $notes
           }

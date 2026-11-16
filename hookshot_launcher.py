@@ -37,7 +37,7 @@ try:
 except ImportError:
     HAS_PIL = False
 
-LAUNCHER_VERSION = "v1.3.0"
+LAUNCHER_VERSION = "v1.3.1"
 LAUNCHER_REPO = "sephirods/Hookshot-Launcher"
 HOOKSHOT_BASE_URL = "https://git.notrexed.dev"
 HOOKSHOT_REPO = "Hookshot/Hookshot"
@@ -194,6 +194,22 @@ UPSCALERS = [
     (4, "AMD FSR 4"),
     (5, "AMD FSR 4 Native AA"),
     (6, "Desactivado (Sin escalador, 3D Nativo)"),
+    (7, "Intel XeSS (Super Resolución IA)"),
+    (8, "Intel XeSS Native AA (Nativo + Suavizado IA)"),
+]
+
+CRT_FILTERS = [
+    (0, "Desactivado (Off)"),
+    (1, "Lottes Aperture Grille (Monitor CRT)"),
+    (2, "Lottes Consumer TV (TV de Tubo)"),
+    (3, "Hyllian Fast (CRT Rápido)"),
+    (4, "zfast CRT (CRT Ligero)"),
+]
+
+CRT_LINES = [
+    (0, "240p (Scanlines Clásicas Retro)"),
+    (1, "480p (Scanlines Finas)"),
+    (2, "720p (Scanlines Densas)"),
 ]
 
 DLSS_MODELS = [
@@ -417,6 +433,8 @@ DEFAULT_OPTIONS = {
     "dlss_model": 0,
     "resolution": 1,
     "upscaling": 0,
+    "crt_filter": 0,
+    "crt_lines": 0,
     "sharpness": 10,
     "anisotropic_filtering": 4,
     "handheld_profile": 0,
@@ -466,7 +484,7 @@ OPTION_KEYS_ORDER = [
     "quality_preset", "fullscreen", "gpu_device", "frame_generation", "frame_pacing",
     "hdr", "hdr_paper_white", "hdr_peak_brightness", "hdr_contrast", "hdr_tonemap",
     "frame_rate_cap", "vsync", "nvidia_reflex",
-    "amd_anti_lag_2", "output_res", "dlss", "dlss_model", "resolution", "upscaling",
+    "amd_anti_lag_2", "output_res", "dlss", "dlss_model", "resolution", "upscaling", "crt_filter", "crt_lines",
     "sharpness", "anisotropic_filtering", "handheld_profile", "ultrawide", "ultrawide_menus",
     "robust_buffers", "mesh_shaders", "volume", "mute_in_background", "audio_output",
     "fps_counter", "fps_corner", "menu_size", "game_speed", "fov", "text_speed", "text_size", "microphone",
@@ -1618,8 +1636,8 @@ class HookshotLauncherApp(tk.Tk):
 
         win = tk.Toplevel(self)
         win.title("Configuración de Hookshot (Guardado Automático en Vivo)")
-        win.geometry("780x590")
-        win.minsize(740, 540)
+        win.geometry("780x640")
+        win.minsize(740, 580)
         win.configure(bg=BG_MAIN)
         win.transient(self)
         if self.icon_path and os.path.isfile(self.icon_path):
@@ -1701,6 +1719,8 @@ class HookshotLauncherApp(tk.Tk):
         self._add_combo_row(col_l, "dlss_model", "Modelo IA de DLSS:", DLSS_MODELS)
         self._add_combo_row(col_l, "resolution", "Resolución de Render 3D:", RENDER_RESOLUTIONS)
         self._add_combo_row(col_l, "upscaling", "Filtro Escalado Ventana:", SCALING_FILTERS)
+        self._add_combo_row(col_l, "crt_filter", "Filtro Retro CRT:", CRT_FILTERS)
+        self._add_combo_row(col_l, "crt_lines", "Líneas de Escaneo CRT:", CRT_LINES)
         self._add_combo_row(col_l, "anisotropic_filtering", "Filtro Anisotrópico:", ANISOTROPIC_MODES)
         self._add_slider_row(col_l, "sharpness", "Nitidez (Sharpness %):", 0, 100, 10)
         self._add_slider_row(col_l, "fov", "Campo de Visión (FOV %):", 50, 150, 5)
