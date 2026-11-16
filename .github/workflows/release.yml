@@ -54,20 +54,22 @@ jobs:
           Copy-Item "assets/hookshot.ico" "portable_pkg/assets/hookshot.ico"
           Compress-Archive -Path "portable_pkg/*" -DestinationPath "HookshotLauncher-Portable.zip" -Force
 
-      - name: Create or Update GitHub Release v1.2.1
+      - name: Create or Update GitHub Release v1.2.2
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $tag = "v1.2.1"
+          $tag = "v1.2.2"
           $notes = @"
-          ## 🛡 Hookshot Launcher & Profile Manager v1.2.1
+          ## 🛡 Hookshot Launcher & Profile Manager v1.2.2
 
-          ### ✨ Novedades en v1.2.1
-          - **Migración a la nueva infraestructura oficial de NotRexed (`git.notrexed.dev`):**
-            - Tras la baja del repositorio antiguo en GitHub, el Launcher ahora se conecta de forma directa e inmune a DMCA al nuevo servidor Git oficial (Gitea/Forgejo) en `https://git.notrexed.dev`.
-            - Detección automática y soporte de actualización directa para **Hookshot `v2.2.0-rc.1`** (con descarga de `HookshotBuilder.exe` oficial).
-          - **Sincronización con Fritchii v5.8+ y Lichii:** Autodetección de las nuevas rutas de partidas en `%APPDATA%\fritchii\nand\user\save` y `%APPDATA%\lichii\nand\user\save` (para importar y exportar) conservando compatibilidad con Eden y NX2navi, además de exportación manual a cualquier carpeta.
-          - **Soporte completo para Hookshot `v2.1.0` / `v2.2.0`:** Lectura de resoluciones híbridas, 5K, HDR, FOV ajustable, Anisotrópico 16x, Mesh Shaders, FSR 4 y mitigación de vibración Bluetooth.
+          ### ✨ Novedades en v1.2.2
+          - **Soporte completo para la nueva estructura `bin/hookshot.exe` de Hookshot `v2.2.0+` y `v2.3.x`:**
+            - Detección automática tanto en la nueva subcarpeta de binarios (`bin\hookshot.exe`) como en la ruta raíz legacy (`hookshot.exe`).
+            - Resuelve el aviso de falso positivo "No se encontró hookshot.exe en esta carpeta" tras actualizar el motor con HookshotBuilder.
+          - **Compatibilidad con Hookshot `v2.3.2` estable:**
+            - Totalmente adaptado para las nuevas mejoras del motor (Intel XeSS, filtros CRT, menor consumo de VRAM y backups de partidas fuera de la carpeta).
+          - **Infraestructura oficial en `git.notrexed.dev`:**
+            - Conexión continua con la API oficial de Gitea/Forgejo para actualizaciones de 1 clic.
 
           ### 📦 Archivos de Descarga
           - **`HookshotLauncher-Setup.exe`**: Instalador automático (instala el Launcher y crea los accesos directos en Escritorio y Menú Inicio con el icono oficial).
@@ -79,5 +81,5 @@ jobs:
             gh release edit $tag --notes $notes
             gh release upload $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --clobber
           } else {
-            gh release create $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --title "Hookshot Launcher & Profile Manager v1.2.1" --notes $notes
+            gh release create $tag "HookshotLauncher-Setup.exe" "HookshotLauncher.exe" "HookshotLauncher-Portable.zip" --title "Hookshot Launcher & Profile Manager v1.2.2" --notes $notes
           }

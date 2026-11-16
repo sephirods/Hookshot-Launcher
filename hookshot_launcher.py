@@ -37,7 +37,7 @@ try:
 except ImportError:
     HAS_PIL = False
 
-LAUNCHER_VERSION = "v1.2.1"
+LAUNCHER_VERSION = "v1.2.2"
 LAUNCHER_REPO = "sephirods/Hookshot-Launcher"
 HOOKSHOT_BASE_URL = "https://git.notrexed.dev"
 HOOKSHOT_REPO = "Hookshot/Hookshot"
@@ -494,10 +494,28 @@ def get_launcher_config_path():
     return os.path.join(cfg_dir, "launcher_config.json")
 
 
+def get_hookshot_exe_path(game_dir):
+    """
+    Locate hookshot.exe:
+    - In v2.2.0+ it resides in game_dir/bin/hookshot.exe
+    - In v2.1.0 and older it resides in game_dir/hookshot.exe
+    Returns absolute path or None.
+    """
+    if not game_dir or not os.path.isdir(game_dir):
+        return None
+    bin_path = os.path.join(game_dir, "bin", "hookshot.exe")
+    if os.path.isfile(bin_path):
+        return bin_path
+    root_path = os.path.join(game_dir, "hookshot.exe")
+    if os.path.isfile(root_path):
+        return root_path
+    return None
+
+
 def detect_game_dir():
     """Find Hookshot's directory: beside the script/exe, from HookshotBuilder settings, or saved config."""
     here = os.path.dirname(os.path.abspath(sys.argv[0]))
-    if os.path.isfile(os.path.join(here, "hookshot.exe")) or os.path.isfile(os.path.join(here, "hookshot_options.ini")):
+    if get_hookshot_exe_path(here) or os.path.isfile(os.path.join(here, "hookshot_options.ini")):
         return here
 
     cfg_path = get_launcher_config_path()
@@ -938,7 +956,7 @@ class HookshotLauncherApp(tk.Tk):
                     pass
 
     def is_hookshot_installed(self):
-        return os.path.isfile(os.path.join(self.game_dir, "hookshot.exe"))
+        return get_hookshot_exe_path(self.game_dir) is not None
 
     def is_game_running(self):
         if self.game_proc is not None and self.game_proc.poll() is None:
@@ -2689,7 +2707,15 @@ class HookshotLauncherApp(tk.Tk):
         active_prof = self.profiles_meta.get("active", "Principal")
         self.activate_profile(active_prof)
 
-        exe_path = os.path.join(self.game_dir, "hookshot.exe")
+        exe_path = get_hookshot_exe_path(self.game_dir)
+        if not exe_path:
+            messagebox.showerror(
+                "Error al iniciar",
+                "No se encontró hookshot.exe en la carpeta del juego (ni en la raíz ni en bin/).",
+                parent=self,
+            )
+            return
+
         env = os.environ.copy()
         env["HOOKSHOT_NO_UPDATE_CHECK"] = "1"
         if self.profiles_meta.get("bt_rumble_compat", 1):
